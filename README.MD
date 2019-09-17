@@ -1,5 +1,8 @@
 TTGO HiGrow
 ===========================
+
+![](image/TSoil.jpg)
+
 ### 3D file
 
 ![](https://github.com/Xinyuan-LilyGO/TTGO-Multi-function-sensor-board/blob/master/image/image2.png)
