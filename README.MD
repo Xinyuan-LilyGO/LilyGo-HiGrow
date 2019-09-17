@@ -1,5 +1,8 @@
 TTGO Multi-function sensor board
 ===========================
+### 3D file
+
+![](https://github.com/Xinyuan-LilyGO/TTGO-Multi-function-sensor-board/blob/master/image/image2.png)
 
 ### Quick start:
 - Copy or move all directories in the <libraries> folder to <C:\Users\Your User Name\Documents\Arduino\libraries>
@@ -16,6 +19,5 @@ TTGO Multi-function sensor board
 ### Peripheral description
 - BOOT Button long press enter smartconfig mode
 - User Button long press enter deepsleep mode
-
 
 ![](image/1.png)
