@@ -1,4 +1,4 @@
-TTGO Multi-function sensor board
+TTGO HiGrow
 ===========================
 ### 3D file
 
