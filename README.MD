@@ -3,10 +3,6 @@ TTGO HiGrow
 
 ![](image/TSoil.jpg)
 
-### 3D file
-
-![](https://github.com/Xinyuan-LilyGO/TTGO-Multi-function-sensor-board/blob/master/image/image2.png)
-
 ### Quick start:
 - Copy or move all directories in the <libraries> folder to <C:\Users\Your User Name\Documents\Arduino\libraries>
 
@@ -24,3 +20,8 @@ TTGO HiGrow
 - User Button long press enter deepsleep mode
 
 ![](image/1.png)
+
+
+### 3D file
+
+![](https://github.com/Xinyuan-LilyGO/TTGO-Multi-function-sensor-board/blob/master/image/image2.png)
