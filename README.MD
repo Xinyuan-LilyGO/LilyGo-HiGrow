@@ -1,7 +1,7 @@
 TTGO HiGrow
 ===========================
 
-![](image/TSoil.jpg)
+![](image/T-Higrow.jpg)
 
 ### Quick start:
 - Copy or move all directories in the <libraries> folder to <C:\Users\Your User Name\Documents\Arduino\libraries>
