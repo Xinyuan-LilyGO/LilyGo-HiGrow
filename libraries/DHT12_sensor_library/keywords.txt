@@ -1,0 +1,24 @@
+###########################################
+# Syntax Coloring Map For DHT12-sensor-library
+###########################################
+
+###########################################
+# Datatypes (KEYWORD1)
+###########################################
+
+DHT12	KEYWORD1
+
+###########################################
+# Methods and Functions (KEYWORD2)
+###########################################
+
+begin	KEYWORD2
+readTemperature	KEYWORD2
+convertCtoF	KEYWORD2
+convertFtoC	KEYWORD2
+computeHeatIndex	KEYWORD2
+readHumidity	KEYWORD2
+dewPoint	KEYWORD2
+readStatus	KEYWORD2
+read	KEYWORD2
+
