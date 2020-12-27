@@ -53,7 +53,7 @@ void initNVS()
 typedef uint32_t nvs_handle_t;
 
 /// @param[out] ssid should be an char array of MAX_SSID_LENGTH elements
-/// @param[out] pwd should be an char array of MAX_PWD_LENGTH elements 
+/// @param[out] pwd should be an char array of MAX_PWD_LENGTH elements
 /// returns true if values were loaded from memory, false otherwise
 bool tryReadSSIDPW(char *ssid, char *pwd)
 {
@@ -68,7 +68,7 @@ bool tryReadSSIDPW(char *ssid, char *pwd)
     }
     else
     {
-        // Read ssid 
+        // Read ssid
         size_t length = MAX_SSID_LENGTH;
         err = nvs_get_str(storage, "ssid", ssid, &length);
         switch (err)
@@ -118,10 +118,10 @@ bool tryReadSSIDPW(char *ssid, char *pwd)
     }
 }
 
-/// @param[in] ssid should be an char array of maximum MAX_SSID_LENGTH elements
-/// @param[in] pwd should be an char array of maximum MAX_PWD_LENGTH elements 
+/// @param[in] ssid should be an char array of maximum MAX_SSID_LENGTH elements.  If null, then the key is erased.
+/// @param[in] pwd should be an char array of maximum MAX_PWD_LENGTH elements.  If null, then the key is erased.
 /// returns true if values were written to memory, false otherwise
-bool writeSSIDPW(char *ssid, char *pwd)
+bool writeSSIDPW(const char *ssid, const char *pwd)
 {
     Serial.println("writeSSIDPW");
     nvs_handle_t storage;
@@ -135,23 +135,51 @@ bool writeSSIDPW(char *ssid, char *pwd)
     else
     {
         // Write SSID
-        err = nvs_set_str(storage, "ssid", ssid);
-        if (err != ESP_OK)
+        if (ssid == nullptr)
         {
-            Serial.print("nvs_set_str(ssid): ");
-            Serial.println(esp_err_to_name(err));
-            nvs_close(storage);
-            return false;
+            err = nvs_erase_key(storage, "ssid");
+            if (err != ESP_OK)
+            {
+                Serial.print("nvs_erase_key(ssid): ");
+                Serial.println(esp_err_to_name(err));
+                nvs_close(storage);
+                return false;
+            }
+        }
+        else
+        {
+            err = nvs_set_str(storage, "ssid", ssid);
+            if (err != ESP_OK)
+            {
+                Serial.print("nvs_set_str(ssid): ");
+                Serial.println(esp_err_to_name(err));
+                nvs_close(storage);
+                return false;
+            }
         }
 
         // write password
-        err = nvs_set_str(storage, "pwd", pwd);
-        if (err != ESP_OK)
+        if (pwd == nullptr)
         {
-            Serial.print("nvs_set_str(pwd): ");
-            Serial.println(esp_err_to_name(err));
-            nvs_close(storage);
-            return false;
+            err = nvs_erase_key(storage, "pwd");
+            if (err != ESP_OK)
+            {
+                Serial.print("nvs_erase_key(pwd): ");
+                Serial.println(esp_err_to_name(err));
+                nvs_close(storage);
+                return false;
+            }
+        }
+        else
+        {
+            err = nvs_set_str(storage, "pwd", pwd);
+            if (err != ESP_OK)
+            {
+                Serial.print("nvs_set_str(pwd): ");
+                Serial.println(esp_err_to_name(err));
+                nvs_close(storage);
+                return false;
+            }
         }
 
         // commit
@@ -279,14 +307,15 @@ WiFiMulti multi;
 DS18B20 temp18B20(DS18B20_PIN);
 #endif
 
-#define WIFI_SSID "your wifi ssid"
-#define WIFI_PASSWD "you wifi password"
-
 bool bme_found = false;
 
 void smartConfigStart(Button2 &b)
 {
     Serial.println("smartConfigStart...");
+
+    Serial.println("Erasing stored details");
+    writeSSIDPW(nullptr, nullptr);
+
     WiFi.disconnect();
     WiFi.beginSmartConfig();
     while (!WiFi.smartConfigDone())
@@ -297,9 +326,32 @@ void smartConfigStart(Button2 &b)
     WiFi.stopSmartConfig();
     Serial.println();
     Serial.print("smartConfigStop Connected:");
-    Serial.print(WiFi.SSID());
-    Serial.print("PSW: ");
-    Serial.println(WiFi.psk());
+    Serial.print("Got SSID: ");
+    Serial.println(WiFi.SSID().c_str());
+    Serial.print("Got PSK: ");
+    Serial.println(WiFi.psk().c_str());
+    if (!writeSSIDPW(WiFi.SSID().c_str(), WiFi.psk().c_str()))
+    {
+        Serial.println("Failed to store details");
+    }
+    else
+    {
+        char ssid[MAX_SSID_LENGTH];
+        char pwd[MAX_PWD_LENGTH];
+        memset(ssid, 0, MAX_SSID_LENGTH);
+        memset(pwd, 0, MAX_PWD_LENGTH);
+        if (tryReadSSIDPW(ssid, pwd))
+        {
+            Serial.print("SSID: ");
+            Serial.println(ssid);
+            Serial.print("PSK: ");
+            Serial.println(pwd);
+        }
+        else
+        {
+            Serial.println("Failed to readback details");
+        }
+    }
 }
 
 void sleepHandler(Button2 &b)
@@ -367,71 +419,60 @@ bool serverBegin()
     return true;
 }
 
-char ssid[MAX_SSID_LENGTH];
-char pwd[MAX_PWD_LENGTH];
-
 void setup()
 {
     Serial.begin(115200);
 
     initNVS();
 
-#ifdef SOFTAP_MODE
-    Serial.println("Configuring access point...");
-    uint8_t mac[6];
-    char buff[128];
-    esp_wifi_get_mac(WIFI_IF_AP, mac);
-    sprintf(buff, "T-Higrow-%02X:%02X", mac[4], mac[5]);
-    WiFi.softAP(buff);
-    Serial.println(buff);
-
-    char ssidT[6] = "abcd";
-    char pwdT[6] = "1234";
-    if (!writeSSIDPW(ssidT, pwdT))
-    {
-        Serial.println("Couldn't write details");
-    }
-
+    // try to read stored SSID and PWD
+    char ssid[MAX_SSID_LENGTH];
+    char pwd[MAX_PWD_LENGTH];
     memset(ssid, 0, MAX_SSID_LENGTH);
     memset(pwd, 0, MAX_PWD_LENGTH);
-    if (!tryReadSSIDPW(ssid, pwd))
+    const bool hasStoredDetails = tryReadSSIDPW(ssid, pwd);
+    if (!hasStoredDetails)
     {
-        Serial.println("No saved details");
-    }
-    Serial.print("SSID: ");
-    Serial.println(ssid);
-    
-    Serial.print("PWD: ");
-    Serial.println(pwd);
-#else
-    WiFi.mode(WIFI_STA);
-    wifi_config_t current_conf;
-    esp_wifi_get_config(WIFI_IF_STA, &current_conf);
-    int ssidlen = strlen((char *)(current_conf.sta.ssid));
-    int passlen = strlen((char *)(current_conf.sta.password));
-    if (ssidlen == 0 || passlen == 0)
-    {
-        multi.addAP(WIFI_SSID, WIFI_PASSWD);
-        Serial.println("Connect to defalut ssid, you can long press BOOT button enter smart config mode");
-        while (multi.run() != WL_CONNECTED)
-        {
-            Serial.print('.');
-        }
+        Serial.println("No saved details, starting access point...");
+
+        uint8_t mac[6];
+        char buff[128];
+        esp_wifi_get_mac(WIFI_IF_AP, mac);
+        sprintf(buff, "T-Higrow-%02X:%02X", mac[4], mac[5]);
+        WiFi.softAP(buff);
+        Serial.println(buff);
     }
     else
     {
-        WiFi.begin();
+        WiFi.mode(WIFI_STA);
+        wifi_config_t current_conf;
+        esp_wifi_get_config(WIFI_IF_STA, &current_conf);
+        int ssidlen = strlen((char *)(current_conf.sta.ssid));
+        int passlen = strlen((char *)(current_conf.sta.password));
+        if (ssidlen == 0 || passlen == 0)
+        {
+            multi.addAP(ssid, pwd);
+            Serial.println("Connect to defalut ssid, you can long press BOOT button enter smart config mode");
+            while (multi.run() != WL_CONNECTED)
+            {
+                Serial.print('.');
+            }
+        }
+        else
+        {
+            WiFi.begin();
+        }
+        if (WiFi.waitForConnectResult() != WL_CONNECTED)
+        {
+            Serial.printf("WiFi connect fail!,please restart retry,or long press BOOT button enter smart config mode\n");
+        }
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            Serial.print("IP Address: ");
+            Serial.println(WiFi.localIP());
+        }
     }
-    if (WiFi.waitForConnectResult() != WL_CONNECTED)
-    {
-        Serial.printf("WiFi connect fail!,please restart retry,or long press BOOT button enter smart config mode\n");
-    }
-    if (WiFi.status() == WL_CONNECTED)
-    {
-        Serial.print("IP Address: ");
-        Serial.println(WiFi.localIP());
-    }
-#endif
+
     button.setLongClickHandler(smartConfigStart);
     useButton.setLongClickHandler(sleepHandler);
 
@@ -505,7 +546,7 @@ void loop()
     static uint64_t timestamp;
     button.loop();
     useButton.loop();
-    if (millis() - timestamp > 1000)
+    if (millis() - timestamp > 5000)
     {
         timestamp = millis();
         // if (WiFi.status() == WL_CONNECTED) {
