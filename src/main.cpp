@@ -14,7 +14,7 @@
 #include <Button2.h>
 #include <Wire.h>
 #include <BH1750.h>
-#include <DHT12.h>
+#include "DHT12_sensor_library/DHT12.h"
 #include <Adafruit_BME280.h>
 #include <WiFiMulti.h>
 #include "esp_wifi.h"
@@ -28,6 +28,7 @@
 
 void initNVS()
 {
+    Serial.println("initNVS");
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
     {
@@ -307,7 +308,41 @@ WiFiMulti multi;
 DS18B20 temp18B20(DS18B20_PIN);
 #endif
 
+bool i2cInited = false;
 bool bme_found = false;
+
+bool tryInitI2CAndDevices()
+{
+    Serial.println("tryInitI2CAndDevices");
+    if (!Wire.begin(I2C_SDA, I2C_SCL))
+    {
+        return false;
+    }
+
+    dht12.begin();
+
+    if (!bmp.begin())
+    {
+        Serial.println(F("Could not find a valid BMP280 sensor, check wiring!"));
+        bme_found = false;
+    }
+    else
+    {
+        bme_found = true;
+    }
+
+    if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE))
+    {
+        Serial.println(F("BH1750 Advanced begin"));
+    }
+    else
+    {
+        Serial.println(F("Error initialising BH1750"));
+    }
+
+    Serial.println("tryInitI2CAndDevices: done");
+    return true;
+}
 
 void smartConfigStart(Button2 &b)
 {
@@ -412,7 +447,6 @@ bool serverBegin()
 #ifdef USE_18B20_TEMP_SENSOR
     ESPDash.addTemperatureCard("temp3", "18B20温度/C", 0, 0);
 #endif
-    ESPDash.addTemperatureCard("temp3", "18B20 Temperature/C", 0, 0);
 #endif
     server.begin();
     MDNS.addService("http", "tcp", 80);
@@ -475,33 +509,17 @@ void setup()
 
     button.setLongClickHandler(smartConfigStart);
     useButton.setLongClickHandler(sleepHandler);
-
-    Wire.begin(I2C_SDA, I2C_SCL);
-
-    dht12.begin();
+    useButton.setDoubleClickHandler(smartConfigStart);
 
     //! Sensor power control pin , use deteced must set high
     pinMode(POWER_CTRL, OUTPUT);
     digitalWrite(POWER_CTRL, 1);
     delay(1000);
 
-    if (!bmp.begin())
+    i2cInited = tryInitI2CAndDevices();
+    if (!i2cInited)
     {
-        Serial.println(F("Could not find a valid BMP280 sensor, check wiring!"));
-        bme_found = false;
-    }
-    else
-    {
-        bme_found = true;
-    }
-
-    if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE))
-    {
-        Serial.println(F("BH1750 Advanced begin"));
-    }
-    else
-    {
-        Serial.println(F("Error initialising BH1750"));
+        Serial.println("Couldn't init I2C");
     }
 }
 
@@ -552,32 +570,42 @@ void loop()
         // if (WiFi.status() == WL_CONNECTED) {
         if (serverBegin())
         {
-            float lux = lightMeter.readLightLevel();
-
-            if (bme_found)
+            // try to initi I2C if we didn't already
+            if (!i2cInited)
             {
-                float bme_temp = bmp.readTemperature();
-                float bme_pressure = (bmp.readPressure() / 100.0F);
-                float bme_altitude = bmp.readAltitude(1013.25);
-#ifdef USE_DASH
-                ESPDash.updateTemperatureCard("temp", (int)bme_temp);
-                ESPDash.updateNumberCard("press", (int)bme_pressure);
-                ESPDash.updateNumberCard("alt", (int)bme_altitude);
-#endif
+                i2cInited = tryInitI2CAndDevices();
             }
 
-            float t12 = dht12.readTemperature();
-            // Read temperature as Fahrenheit (isFahrenheit = true)
-            float h12 = dht12.readHumidity();
+            // if I2C was initialised, read sensors
+            if (i2cInited)
+            {
+                Serial.println("Reading I2C sensors");
+                float lux = lightMeter.readLightLevel();
+                if (bme_found)
+                {
+                    float bme_temp = bmp.readTemperature();
+                    float bme_pressure = (bmp.readPressure() / 100.0F);
+                    float bme_altitude = bmp.readAltitude(1013.25);
+#ifdef USE_DASH
+                    ESPDash.updateTemperatureCard("temp", (int)bme_temp);
+                    ESPDash.updateNumberCard("press", (int)bme_pressure);
+                    ESPDash.updateNumberCard("alt", (int)bme_altitude);
+#endif
+                }
+
+                float t12 = dht12.readTemperature();
+                // Read temperature as Fahrenheit (isFahrenheit = true)
+                float h12 = dht12.readHumidity();
 
 #ifdef USE_DASH
-            if (!isnan(t12) && !isnan(h12))
-            {
-                ESPDash.updateTemperatureCard("temp2", (int)t12);
-                ESPDash.updateHumidityCard("hum2", (int)h12);
-            }
-            ESPDash.updateNumberCard("lux", (int)lux);
+                if (!isnan(t12) && !isnan(h12))
+                {
+                    ESPDash.updateTemperatureCard("temp2", (int)t12);
+                    ESPDash.updateHumidityCard("hum2", (int)h12);
+                }
+                ESPDash.updateNumberCard("lux", (int)lux);
 #endif
+            }
 
             uint16_t soil = readSoil();
             uint32_t salt = readSalt();
