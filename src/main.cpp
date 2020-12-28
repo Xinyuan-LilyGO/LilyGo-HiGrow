@@ -52,6 +52,66 @@ DS18B20 temp18B20(DS18B20_PIN);
 bool i2cInited = false;
 bool bme_found = false;
 constexpr uint32_t kUpdateTime_ms = 5000;
+constexpr long kGmtOffset_s = 0;        // offset between GMT and your local time
+constexpr int kDaylightOffset_s = 3600; // offset for daylight saving
+constexpr char kNtpServer[] = "pool.ntp.org";
+
+bool g_gotStartupTime = false;
+tm g_startupTime;
+uint32_t g_startupTime_millis = 0;
+
+bool tryToGetGlobalTime()
+{
+    configTime(kGmtOffset_s, kDaylightOffset_s, kNtpServer);
+    if (!getLocalTime(&g_startupTime))
+    {
+        Serial.println("Failed to get local time");
+        return false;
+    }
+
+    g_gotStartupTime = true;
+    g_startupTime_millis = millis();
+
+    return true;
+}
+
+uint32_t formatTimeAsNumber()
+{
+    uint32_t now = millis();
+    uint32_t diff_ms = now - g_startupTime_millis;
+    uint32_t diff_s = diff_ms / 1000;
+    uint32_t diffPart_hrs = diff_s / 3600;
+    diff_s -= diffPart_hrs * 3600;
+    uint32_t diffPart_mins = diff_s / 60;
+    diff_s -= diffPart_mins * 60;
+    uint32_t diffPart_s = diff_s;
+    int hours = g_startupTime.tm_hour + diffPart_hrs;
+    int mins = g_startupTime.tm_min + diffPart_mins;
+    int secs = g_startupTime.tm_sec + diffPart_s;
+
+    // some parts might have overflowed so need to adjust
+    uint32_t extraMins = secs / 60;
+    mins += extraMins;
+    secs -= extraMins * 60;
+
+    uint32_t extraHours = mins / 60;
+    hours += extraHours;
+    mins -= extraHours * 60;
+
+    Serial.print(hours);
+    Serial.print(":");
+    Serial.print(mins);
+    Serial.print(":");
+    Serial.println(secs);
+
+    uint32_t timeNumber = //
+        hours * 10000     //
+        + mins * 100      //
+        + secs;
+    Serial.println(timeNumber);
+
+    return timeNumber;
+}
 
 void initNVS()
 {
@@ -444,7 +504,8 @@ bool serverBegin()
     ESPDash.addHumidityCard("soil", "Soil", 0);
     ESPDash.addNumberCard("salt", "Salt", 0);
     ESPDash.addNumberCard("batt", "Battery/mV", 0);
-    ESPDash.addHumidityCard("rssi", "WiFi Strength/dBm", 0);  // can't be "NumberCard" because a number card has a value stored as uint32_t (unsigned)
+    ESPDash.addHumidityCard("rssi", "WiFi Strength/dBm", 0); // can't be "NumberCard" because a number card has a value stored as uint16_t (unsigned)
+    ESPDash.addHumidityCard("time", "Last update time (HHMMSS)", 0);
 #endif
 
 #ifdef USE_18B20_TEMP_SENSOR
@@ -461,7 +522,7 @@ void setup()
     Serial.begin(115200);
 
     initNVS();
-    
+
     // turn on WiFi power saving
     WiFi.setSleep(true);
 
@@ -576,12 +637,25 @@ void loop()
     static uint64_t timestamp;
     button.loop();
     useButton.loop();
+
     if (millis() - timestamp > kUpdateTime_ms)
     {
         timestamp = millis();
         // if (WiFi.status() == WL_CONNECTED) {
         if (serverBegin())
         {
+            // try to get global time if we haven't already
+            if (!g_gotStartupTime)
+            {
+                g_gotStartupTime = tryToGetGlobalTime();
+                ESPDash.updateHumidityCard("time", 0);
+            }
+            else
+            {
+                uint32_t time = formatTimeAsNumber();
+                ESPDash.updateHumidityCard("time", time);
+            }
+
             // try to initi I2C if we didn't already
             if (!i2cInited)
             {
