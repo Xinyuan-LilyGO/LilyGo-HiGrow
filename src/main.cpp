@@ -465,6 +465,12 @@ void setup()
     // turn on WiFi power saving
     WiFi.setSleep(true);
 
+    // set to low frequency
+    setCpuFrequencyMhz(80);
+    Serial.print("CPU frequency set to ");
+    Serial.print(getCpuFrequencyMhz());
+    Serial.println(" MHz");
+
     // try to read stored SSID and PWD
     char ssid[MAX_SSID_LENGTH];
     char pwd[MAX_PWD_LENGTH];
