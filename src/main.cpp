@@ -444,6 +444,7 @@ bool serverBegin()
     ESPDash.addHumidityCard("soil", "Soil", 0);
     ESPDash.addNumberCard("salt", "Salt", 0);
     ESPDash.addNumberCard("batt", "Battery/mV", 0);
+    ESPDash.addHumidityCard("rssi", "WiFi Strength/dBm", 0);  // can't be "NumberCard" because a number card has a value stored as uint32_t (unsigned)
 #endif
 
 #ifdef USE_18B20_TEMP_SENSOR
@@ -617,10 +618,15 @@ void loop()
             uint32_t salt = readSalt();
             float bat = readBattery();
             adc_power_off();
+
+            int rssi = (int)WiFi.RSSI();
+            Serial.print("RSSI: ");
+            Serial.println(rssi);
 #ifdef USE_DASH
             ESPDash.updateHumidityCard("soil", (int)soil);
             ESPDash.updateNumberCard("salt", (int)salt);
             ESPDash.updateNumberCard("batt", (int)bat);
+            ESPDash.updateHumidityCard("rssi", rssi);
 #else
             Serial.print("soil ");
             Serial.println(soil);
