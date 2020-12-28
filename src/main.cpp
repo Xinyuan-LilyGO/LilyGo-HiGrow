@@ -18,6 +18,7 @@
 #include <Adafruit_BME280.h>
 #include <WiFiMulti.h>
 #include "esp_wifi.h"
+#include "driver/adc.h"
 #include "esp_system.h"
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -606,10 +607,12 @@ void loop()
                 ESPDash.updateNumberCard("lux", (int)lux);
 #endif
             }
-
+            // turn the ADC on
+            adc_power_on();
             uint16_t soil = readSoil();
             uint32_t salt = readSalt();
             float bat = readBattery();
+            adc_power_off();
 #ifdef USE_DASH
             ESPDash.updateHumidityCard("soil", (int)soil);
             ESPDash.updateNumberCard("salt", (int)salt);
