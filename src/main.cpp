@@ -27,6 +27,32 @@
 // #define USE_18B20_TEMP_SENSOR
 // #define USE_CHINESE_WEB
 
+#define I2C_SDA 25
+#define I2C_SCL 26
+#define DHT12_PIN 16
+#define BAT_ADC 33
+#define SALT_PIN 34
+#define SOIL_PIN 32
+#define BOOT_PIN 0
+#define POWER_CTRL 4
+#define USER_BUTTON 35
+#define DS18B20_PIN 21 //18b20 data pin
+
+BH1750 lightMeter(0x23); //0x23
+Adafruit_BME280 bmp;     //0x77
+DHT12 dht12(DHT12_PIN, true);
+AsyncWebServer server(80);
+Button2 button(BOOT_PIN);
+Button2 useButton(USER_BUTTON);
+WiFiMulti multi;
+#ifdef USE_18B20_TEMP_SENSOR
+DS18B20 temp18B20(DS18B20_PIN);
+#endif
+
+bool i2cInited = false;
+bool bme_found = false;
+constexpr uint32_t kUpdateTime_ms = 5000;
+
 void initNVS()
 {
     Serial.println("initNVS");
@@ -287,31 +313,6 @@ private:
 };
 #endif
 
-#define I2C_SDA 25
-#define I2C_SCL 26
-#define DHT12_PIN 16
-#define BAT_ADC 33
-#define SALT_PIN 34
-#define SOIL_PIN 32
-#define BOOT_PIN 0
-#define POWER_CTRL 4
-#define USER_BUTTON 35
-#define DS18B20_PIN 21 //18b20 data pin
-
-BH1750 lightMeter(0x23); //0x23
-Adafruit_BME280 bmp;     //0x77
-DHT12 dht12(DHT12_PIN, true);
-AsyncWebServer server(80);
-Button2 button(BOOT_PIN);
-Button2 useButton(USER_BUTTON);
-WiFiMulti multi;
-#ifdef USE_18B20_TEMP_SENSOR
-DS18B20 temp18B20(DS18B20_PIN);
-#endif
-
-bool i2cInited = false;
-bool bme_found = false;
-
 bool tryInitI2CAndDevices()
 {
     Serial.println("tryInitI2CAndDevices");
@@ -565,7 +566,7 @@ void loop()
     static uint64_t timestamp;
     button.loop();
     useButton.loop();
-    if (millis() - timestamp > 5000)
+    if (millis() - timestamp > kUpdateTime_ms)
     {
         timestamp = millis();
         // if (WiFi.status() == WL_CONNECTED) {
