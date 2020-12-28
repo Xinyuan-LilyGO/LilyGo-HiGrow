@@ -460,6 +460,9 @@ void setup()
     Serial.begin(115200);
 
     initNVS();
+    
+    // turn on WiFi power saving
+    WiFi.setSleep(true);
 
     // try to read stored SSID and PWD
     char ssid[MAX_SSID_LENGTH];
