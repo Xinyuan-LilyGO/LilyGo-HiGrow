@@ -1,0 +1,14 @@
+* D:\Misc\TTGO-HiGrow\electronics\soil_sensor_analysis.asc
+V1 N001 0 PULSE(0 3.3 0 0 0 0.6u 1.2u 200000)
+R1 N002 N001 10000
+C1 N002 0 {C}
+D1 N002 Humi D
+C2 Humi 0 1µ
+R2 Humi 0 1000000
+.model D D
+.lib C:\Users\ONIDemoUnit2\Documents\LTspiceXVII\lib\cmp\standard.dio
+.tran 0 0.1 0 0.01
+.step oct param C 0.1f 0.1p 2
+.meas HV MAX V(Humi)
+.backanno
+.end
