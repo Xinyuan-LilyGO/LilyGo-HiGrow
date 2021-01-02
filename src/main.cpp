@@ -96,6 +96,7 @@ uint32_t formatTimeAsNumber()
 
     uint32_t extraHours = mins / 60;
     hours += extraHours;
+    hours %= 24;
     mins -= extraHours * 60;
 
     Serial.print(hours);
