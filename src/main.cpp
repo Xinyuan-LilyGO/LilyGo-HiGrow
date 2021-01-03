@@ -15,7 +15,6 @@
 #include <Wire.h>
 #include <BH1750.h>
 #include "DHT12_sensor_library/DHT12.h"
-#include <Adafruit_BME280.h>
 #include <WiFiMulti.h>
 #include "esp_wifi.h"
 #include "driver/adc.h"
@@ -39,23 +38,18 @@
 #define DS18B20_PIN 21 //18b20 data pin
 
 BH1750 lightMeter(0x23); //0x23
-Adafruit_BME280 bmp;     //0x77
 DHT12 dht12(DHT12_PIN, true);
 AsyncWebServer server(80);
 Button2 button(BOOT_PIN);
 Button2 useButton(USER_BUTTON);
 WiFiMulti multi;
-#ifdef USE_18B20_TEMP_SENSOR
-DS18B20 temp18B20(DS18B20_PIN);
-#endif
 
-bool i2cInited = false;
-bool bme_found = false;
 constexpr uint32_t kUpdateTime_ms = 5000;
 constexpr long kGmtOffset_s = 0;        // offset between GMT and your local time
 constexpr int kDaylightOffset_s = 3600; // offset for daylight saving
 constexpr char kNtpServer[] = "pool.ntp.org";
 
+bool g_i2cInited = false;
 bool g_gotStartupTime = false;
 tm g_startupTime;
 uint32_t g_startupTime_millis = 0;
@@ -96,6 +90,7 @@ uint32_t formatTimeAsNumber()
 
     uint32_t extraHours = mins / 60;
     hours += extraHours;
+    hours %= 24;
     mins -= extraHours * 60;
 
     Serial.print(hours);
@@ -285,94 +280,6 @@ bool writeSSIDPW(const char *ssid, const char *pwd)
     }
 }
 
-#ifdef USE_18B20_TEMP_SENSOR
-// Simple ds18b20 class
-class DS18B20
-{
-public:
-    DS18B20(int gpio)
-    {
-        pin = gpio;
-    }
-
-    float temp()
-    {
-        uint8_t arr[2] = {0};
-        if (reset())
-        {
-            wByte(0xCC);
-            wByte(0x44);
-            delay(750);
-            reset();
-            wByte(0xCC);
-            wByte(0xBE);
-            arr[0] = rByte();
-            arr[1] = rByte();
-            reset();
-            return (float)(arr[0] + (arr[1] * 256)) / 16;
-        }
-        return 0;
-    }
-
-private:
-    int pin;
-
-    void write(uint8_t bit)
-    {
-        pinMode(pin, OUTPUT);
-        digitalWrite(pin, LOW);
-        delayMicroseconds(5);
-        if (bit)
-            digitalWrite(pin, HIGH);
-        delayMicroseconds(80);
-        digitalWrite(pin, HIGH);
-    }
-
-    uint8_t read()
-    {
-        pinMode(pin, OUTPUT);
-        digitalWrite(pin, LOW);
-        delayMicroseconds(2);
-        digitalWrite(pin, HIGH);
-        delayMicroseconds(15);
-        pinMode(pin, INPUT);
-        return digitalRead(pin);
-    }
-
-    void wByte(uint8_t bytes)
-    {
-        for (int i = 0; i < 8; ++i)
-        {
-            write((bytes >> i) & 1);
-        }
-        delayMicroseconds(100);
-    }
-
-    uint8_t rByte()
-    {
-        uint8_t r = 0;
-        for (int i = 0; i < 8; ++i)
-        {
-            if (read())
-                r |= 1 << i;
-            delayMicroseconds(15);
-        }
-        return r;
-    }
-
-    bool reset()
-    {
-        pinMode(pin, OUTPUT);
-        digitalWrite(pin, LOW);
-        delayMicroseconds(500);
-        digitalWrite(pin, HIGH);
-        pinMode(pin, INPUT);
-        delayMicroseconds(500);
-        return digitalRead(pin);
-    }
-};
-#endif
-
 bool tryInitI2CAndDevices()
 {
     Serial.println("tryInitI2CAndDevices");
@@ -382,16 +289,6 @@ bool tryInitI2CAndDevices()
     }
 
     dht12.begin();
-
-    if (!bmp.begin())
-    {
-        Serial.println(F("Could not find a valid BMP280 sensor, check wiring!"));
-        bme_found = false;
-    }
-    else
-    {
-        bme_found = true;
-    }
 
     if (lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE))
     {
@@ -478,18 +375,6 @@ bool serverBegin()
     }
     // Add Respective Cards
 #ifdef USE_DASH
-    if (bme_found)
-    {
-#ifdef USE_CHINESE_WEB
-        ESPDash.addTemperatureCard("temp", "BME传感器温度/C", 0, 0);
-        ESPDash.addNumberCard("press", "BME传感器压力/hPa", 0);
-        ESPDash.addNumberCard("alt", "BME传感器高度/m", 0);
-#else
-        ESPDash.addTemperatureCard("temp", "BME Temperature/C", 0, 0);
-        ESPDash.addNumberCard("press", "BME Pressure/hPa", 0);
-        ESPDash.addNumberCard("alt", "BME Altitude/m", 0);
-#endif
-    }
 #ifdef USE_CHINESE_WEB
     ESPDash.addTemperatureCard("temp2", "DHT12传感器温度/C", 0, 0);
     ESPDash.addHumidityCard("hum2", "DHT12传感器湿度/%", 0);
@@ -506,10 +391,6 @@ bool serverBegin()
     ESPDash.addNumberCard("batt", "Battery/mV", 0);
     ESPDash.addHumidityCard("rssi", "WiFi Strength/dBm", 0); // can't be "NumberCard" because a number card has a value stored as uint16_t (unsigned)
     ESPDash.addHumidityCard("time", "Last update time (HHMMSS)", 0);
-#endif
-
-#ifdef USE_18B20_TEMP_SENSOR
-    ESPDash.addTemperatureCard("temp3", "18B20温度/C", 0, 0);
 #endif
 #endif
     server.begin();
@@ -589,8 +470,8 @@ void setup()
     digitalWrite(POWER_CTRL, 1);
     delay(1000);
 
-    i2cInited = tryInitI2CAndDevices();
-    if (!i2cInited)
+    g_i2cInited = tryInitI2CAndDevices();
+    if (!g_i2cInited)
     {
         Serial.println("Couldn't init I2C");
     }
@@ -657,37 +538,25 @@ void loop()
             }
 
             // try to initi I2C if we didn't already
-            if (!i2cInited)
+            if (!g_i2cInited)
             {
-                i2cInited = tryInitI2CAndDevices();
+                g_i2cInited = tryInitI2CAndDevices();
             }
 
             // if I2C was initialised, read sensors
-            if (i2cInited)
+            if (g_i2cInited)
             {
                 Serial.println("Reading I2C sensors");
                 float lux = lightMeter.readLightLevel();
-                if (bme_found)
-                {
-                    float bme_temp = bmp.readTemperature();
-                    float bme_pressure = (bmp.readPressure() / 100.0F);
-                    float bme_altitude = bmp.readAltitude(1013.25);
-#ifdef USE_DASH
-                    ESPDash.updateTemperatureCard("temp", (int)bme_temp);
-                    ESPDash.updateNumberCard("press", (int)bme_pressure);
-                    ESPDash.updateNumberCard("alt", (int)bme_altitude);
-#endif
-                }
-
-                float t12 = dht12.readTemperature();
+                float temperature = dht12.readTemperature();
                 // Read temperature as Fahrenheit (isFahrenheit = true)
-                float h12 = dht12.readHumidity();
+                float humidity = dht12.readHumidity();
 
 #ifdef USE_DASH
-                if (!isnan(t12) && !isnan(h12))
+                if (!isnan(temperature) && !isnan(humidity))
                 {
-                    ESPDash.updateTemperatureCard("temp2", (int)t12);
-                    ESPDash.updateHumidityCard("hum2", (int)h12);
+                    ESPDash.updateTemperatureCard("temp2", (int)temperature);
+                    ESPDash.updateHumidityCard("hum2", (int)humidity);
                 }
                 ESPDash.updateNumberCard("lux", (int)lux);
 #endif
@@ -714,12 +583,6 @@ void loop()
             Serial.println(salt);
             Serial.print("batt ");
             Serial.println(bat);
-#endif
-
-#ifdef USE_18B20_TEMP_SENSOR
-            //Single data stream upload
-            float temp = temp18B20.temp();
-            ESPDash.updateTemperatureCard("temp3", (int)temp);
 #endif
         }
     }
