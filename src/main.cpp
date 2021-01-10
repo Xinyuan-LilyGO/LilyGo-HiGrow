@@ -35,7 +35,6 @@
 #define BOOT_PIN 0
 #define POWER_CTRL 4
 #define USER_BUTTON 35
-#define DS18B20_PIN 21 //18b20 data pin
 
 BH1750 lightMeter(0x23); //0x23
 DHT12 dht12(DHT12_PIN, true);
