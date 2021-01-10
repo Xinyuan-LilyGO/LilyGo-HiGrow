@@ -6,7 +6,7 @@ import os
 import threading
 
 
-class Server:
+class MQTTRelay:
 
     def __init__(self, topic_filter='#',
                  database_path="databases",

@@ -1,4 +1,4 @@
-import server
+import mqtt_relay
 import time
 import database
 import logging
@@ -15,7 +15,7 @@ def test_run_server():
     handler.setFormatter(formatter)
     root.addHandler(handler)
 
-    s = server.Server(topic_filter="qdtest/number")
+    s = mqtt_relay.MQTTRelay(topic_filter="qdtest/number")
     s.initialise()
     time.sleep(5)
     s.uninitialise()
