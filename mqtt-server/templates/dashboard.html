@@ -1,0 +1,8 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% for plot in plots %}
+        {% for part in plot %}
+            {{part | safe}}
+        {% endfor %}
+    {% endfor %}
+{% endblock %}

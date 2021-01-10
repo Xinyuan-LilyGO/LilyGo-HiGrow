@@ -29,6 +29,8 @@ class MQTTRelay:
         self.__mqt_host_port = mqt_host_port
         self.__enable_logging = enable_logging
 
+        self.__observed_topics = set()
+
     def initialise(self):
 
         # connect to database
@@ -68,3 +70,4 @@ class MQTTRelay:
         logging.info("Message recieved. topic={}, qos={}, retain={}, length={}".format(
                      message.topic, message.qos, message.retain, len(message.payload)))
         self.__database.write_message(message.topic, message.payload)
+        self.__observed_topics.add(message.topic)
