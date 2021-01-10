@@ -18,15 +18,18 @@ class Database:
         self.__db_thread_state = 0
         self.__db_thread_start_condition = threading.Condition()
 
-    def open(self, filename):
-        self.__kill_db_thread = False
-        self.__db_thread = threading.Thread(
-            target=self.__open_and_loop, args=(filename,))
-        self.__db_thread.start()
-        with self.__db_thread_start_condition:
-            self.__db_thread_start_condition.wait_for(
-                self.__db_thread_started_or_finished, timeout=5)
-        return self.__open
+    def open(self, filename, threaded=True):
+        if threaded:
+            self.__kill_db_thread = False
+            self.__db_thread = threading.Thread(
+                target=self.__open_and_loop, args=(filename,))
+            self.__db_thread.start()
+            with self.__db_thread_start_condition:
+                self.__db_thread_start_condition.wait_for(
+                    self.__db_thread_started_or_finished, timeout=5)
+            return self.__open
+        else:
+            return self.__open_connection_and_setup_schema(filename)
 
     def is_open(self):
         return self.__open
@@ -39,13 +42,7 @@ class Database:
         with self.__db_thread_start_condition:
             self.__db_thread_start_condition.notify_all()
 
-    def __open_and_loop(self, filename):
-        """
-        Open the database from file
-        If the file doesn't exist, it will be created
-        """
-
-        self.__db_thread_state = 1  # starting up
+    def __open_connection_and_setup_schema(self, filename):
         try:
             self.__connection = sqlite3.connect(filename)
             self.__cursor = self.__connection.cursor()
@@ -54,11 +51,22 @@ class Database:
             logging.error(
                 "Exception when opening database from '{}'".format(filename))
             self.__open = False
-        finally:
-            self.__notify_loop_state(4)
-
+            return False
         self.__setup_schema()
+        return True
 
+    def __open_and_loop(self, filename):
+        """
+        Open the database from file
+        If the file doesn't exist, it will be created
+        """
+
+        self.__notify_loop_state(1)
+        try:
+            self.__open_connection_and_setup_schema(filename)
+        except:
+            self.__notify_loop_state(4)
+            return
         self.__notify_loop_state(2)
 
         while not self.__kill_db_thread:
@@ -97,17 +105,20 @@ class Database:
     def close(self, wait_for_write=False):
         """
         Close the database
-        if [wait_for_write] is True, wait for any pending messages to be written to the database before closing
+        if [wait_for_write] is True, wait for any pending messages to be written to the database before closing (if async)
         """
 
-        # if we want to halt immediately (after the current message is done being process)
-        # set the flag so that after the current message is handled, the loop will die
-        if not wait_for_write:
-            self.__kill_db_thread = True
-        # wake the queue up with a None message (that will end the loop it if it gets to it)
-        self.__message_queue.put(None)
-        self.__db_thread.join()
-        self.__db_thread = None
+        if self.__db_thread is not None:
+            # if we want to halt immediately (after the current message is done being process)
+            # set the flag so that after the current message is handled, the loop will die
+            if not wait_for_write:
+                self.__kill_db_thread = True
+            # wake the queue up with a None message (that will end the loop it if it gets to it)
+            self.__message_queue.put(None)
+            self.__db_thread.join()
+            self.__db_thread = None
+        else:
+            self.__close()
 
     def __close(self):
         """
@@ -120,7 +131,11 @@ class Database:
         return self.__open
 
     def write_message(self, topic, data: bytes):
-        self.__message_queue.put((topic, data))
+        if self.__db_thread is not None: 
+            self.__message_queue.put((topic, data))
+            return True
+        else:
+            return self.__write_message(topic, data)
 
     def __write_message(self, topic, data: bytes):
         try:
@@ -134,3 +149,4 @@ class Database:
             logging.error(
                 "Exception when inserting row with topic {}: {}".format(topic, e))
             return True
+
