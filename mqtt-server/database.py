@@ -93,12 +93,23 @@ class Database:
         if not self.__open:
             raise Exception("Database wasn't open")
 
+        # create the events table
+        # (a table of all observed messages, ever)
         self.__cursor.execute(
             "CREATE TABLE IF NOT EXISTS events("
             "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,"
             "topic TEXT NOT NULL,"
             "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,"
             "data BLOB"
+            ");")
+        self.__connection.commit()
+
+        # create the topics table
+        # (a table of all observed topics, ever)
+        self.__cursor.execute(
+            "CREATE TABLE IF NOT EXISTS topics("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,"
+            "name TEXT UNIQUE NOT NULL"
             ");")
         self.__connection.commit()
 
@@ -130,8 +141,24 @@ class Database:
 
         return self.__open
 
+    def get_topics(self):
+        """
+        Return a list of the topics in the database
+        """
+        try:
+            sql = "SELECT * FROM 'topics' ORDER BY 'name' ASC"
+            self.__cursor.execute(sql)
+            topics = self.__cursor.fetchall()
+            if topics is None or len(topics) == 0:
+                return []
+            return [topic[1] for topic in topics]
+        except Exception as e:
+            logging.error(
+                "Exception when trying to get topics list: {}".format(e))
+            return []
+
     def write_message(self, topic, data: bytes):
-        if self.__db_thread is not None: 
+        if self.__db_thread is not None:
             self.__message_queue.put((topic, data))
             return True
         else:
@@ -139,14 +166,19 @@ class Database:
 
     def __write_message(self, topic, data: bytes):
         try:
-            sql = "INSERT INTO 'events' " \
-                "(topic, data) " \
+            # insert the message
+            sql = "INSERT INTO 'events' (topic, data) " \
                 "VALUES (?, ?);"
             self.__cursor.execute(sql, (topic, sqlite3.Binary(data),))
             self.__connection.commit()
+
+            # insert the topic to keep a list of unique topics
+            sql = "INSERT INTO 'topics' ('name') VALUES (?)"
+            self.__cursor.execute(sql, (topic,))
+            self.__connection.commit()
+
             return False
         except Exception as e:
             logging.error(
                 "Exception when inserting row with topic {}: {}".format(topic, e))
             return True
-
