@@ -247,8 +247,18 @@ void setup()
                 makeTopicString(topicBuffer, 100, g_mqttTopicRoot, "lux");
                 mqttClient.publish(topicBuffer, "0.0");
             }
+
+            // mark all as sent so we'll measure a new batch
+            g_workingData.numMeasurementsRecorded = 0;
+
+            mqttClient.disconnect();
+            WiFi.disconnect();
         }
     }
+
+    // finally, go back to sleep
+    esp_sleep_enable_timer_wakeup(WorkingData::kTimeBetweenMeasurements_ms * 1000);
+    esp_deep_sleep_start();
 }
 
 void loop()
