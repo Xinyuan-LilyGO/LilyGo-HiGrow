@@ -12,7 +12,6 @@ struct Measurements
     float salt = 0.f;
     float battery_mV = 0.f;
     uint32_t timestamp_ms = 0;
-    int8_t rssi = 0;
 };
 
 bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasurements);

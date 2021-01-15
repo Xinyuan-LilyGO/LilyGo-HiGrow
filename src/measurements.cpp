@@ -1,7 +1,6 @@
 #include "measurements.h"
 #include "pins.h"
 #include "driver/adc.h"
-#include <WiFiMulti.h>
 
 uint32_t readSalt()
 {
@@ -41,15 +40,18 @@ float readBattery()
 
 bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasurements)
 {
-    if (outMeasurements == nullptr)
+    if (lightMeter == nullptr ||   //
+        dht12 == nullptr ||        //
+        outMeasurements == nullptr //
+    )
     {
         return false;
     }
-    
+
     outMeasurements->lux = lightMeter->readLightLevel();
     outMeasurements->temperature_C = dht12->readTemperature();
     outMeasurements->humidity = dht12->readHumidity();
-    
+
     // turn the ADC on
     adc_power_on();
     outMeasurements->soil = readSoil();
@@ -57,6 +59,5 @@ bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasure
     outMeasurements->battery_mV = readBattery();
     adc_power_off();
 
-    outMeasurements->rssi = WiFi.RSSI();
     return true;
 }
