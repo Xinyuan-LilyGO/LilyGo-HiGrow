@@ -4,9 +4,13 @@ import database
 import logging
 import os
 import threading
+from PyQt5.QtCore import QObject, pyqtSignal
 
 
-class MQTTRelay:
+class MQTTRelay(QObject):
+
+    new_topic = pyqtSignal(str)
+    new_data = pyqtSignal(str, bytes)
 
     def __init__(self, topic_filter='#',
                  database_path="databases",
@@ -18,6 +22,8 @@ class MQTTRelay:
         optionally set a topic filter as [topic_filter]
         by default subscribe to all messages ('#'), not recommended (https://www.hivemq.com/blog/mqtt-essentials-part-5-mqtt-topics-best-practices/)
         """
+        super(MQTTRelay, self).__init__()
+        
         self.__database = None
         self.__client = None
         # thread that runs the "loop_forever" method of the mqtt client
@@ -70,4 +76,11 @@ class MQTTRelay:
         logging.info("Message recieved. topic={}, qos={}, retain={}, length={}".format(
                      message.topic, message.qos, message.retain, len(message.payload)))
         self.__database.write_message(message.topic, message.payload)
+
+        init_num_topics = len(self.__observed_topics)
         self.__observed_topics.add(message.topic)
+        # if the number of observed topics just increased, notify that we got a new one
+        if len(self.__observed_topics) > init_num_topics:
+            self.new_topic.emit(message.topic)
+
+        self.new_data.emit(message.topic, message.payload)
