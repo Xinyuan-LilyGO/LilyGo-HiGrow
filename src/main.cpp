@@ -108,6 +108,7 @@ void enterDeepSleep()
 {
     //inspired by https://www.reddit.com/r/esp32/comments/exgi32/esp32_ultralow_power_mode/
     PRINTLN("Powering down...");
+    digitalWrite(POWER_CTRL, LOW);
     WiFi.disconnect(true); // Keeps WiFi APs happy
     WiFi.mode(WIFI_OFF);   // Switch WiFi off
     esp_sleep_enable_timer_wakeup(WorkingData::kTimeBetweenMeasurements_ms * 1000);
@@ -116,18 +117,20 @@ void enterDeepSleep()
 
 void setup()
 {
+    // setup GPIOs
+    pinMode(USER_BUTTON, INPUT);
+    pinMode(SOIL_PIN, ANALOG);
+    pinMode(SALT_PIN, ANALOG);
+    pinMode(BAT_ADC, ANALOG);
+
     Serial.begin(115200);
+    delay(100);
 
     // disable saving wifi details into Flash as it wears it down and is anyway unreliable
     // so we store details in NVS instead by ourselves
     WiFi.persistent(false);
 
     // if started up with button held down, then go into smart config mode
-    pinMode(USER_BUTTON, INPUT);
-    pinMode(SOIL_PIN, ANALOG);
-    pinMode(SALT_PIN, ANALOG);
-    pinMode(BAT_ADC, ANALOG);
-    delay(1000);
     if (digitalRead(USER_BUTTON) == LOW)
     {
         smartConfigStart();
@@ -143,8 +146,7 @@ void setup()
     if (g_workingData.numMeasurementsRecorded < WorkingData::kNumMeasurementsToTakeBeforeSending)
     {
         PRINTLN("Powering on to take measurement");
-        pinMode(POWER_CTRL, OUTPUT);
-        digitalWrite(POWER_CTRL, 1);
+        digitalWrite(POWER_CTRL, HIGH);
         delay(1000);
 
         // initialise I2C devices
@@ -168,6 +170,8 @@ void setup()
 #endif
             ++g_workingData.numMeasurementsRecorded;
         }
+
+        digitalWrite(POWER_CTRL, LOW);
     }
 
     PRINT("Taken measurements ");

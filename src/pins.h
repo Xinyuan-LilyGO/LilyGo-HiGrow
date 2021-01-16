@@ -5,5 +5,5 @@
 #define SALT_PIN 34
 #define SOIL_PIN 32
 #define BOOT_PIN 0
-#define POWER_CTRL 4
+#define POWER_CTRL 4 // GPIO4 - PWR_EN
 #define USER_BUTTON 35
