@@ -61,7 +61,7 @@ bool tryInitI2CAndDevices()
         PRINTLN(F("Error initialising BH1750"));
     }
 
-    delay(200);
+    delay(1000); //  delay to make things reliable
     PRINTLN("tryInitI2CAndDevices: done");
     return true;
 }
@@ -104,9 +104,23 @@ void publishMessage(const char *subTopic, const char *valueFormat, T value)
     mqttClient.publish(topicBuffer, valueBuffer);
 }
 
+void enterDeepSleep()
+{
+    //inspired by https://www.reddit.com/r/esp32/comments/exgi32/esp32_ultralow_power_mode/
+    PRINTLN("Powering down...");
+    WiFi.disconnect(true); // Keeps WiFi APs happy
+    WiFi.mode(WIFI_OFF);   // Switch WiFi off
+    esp_sleep_enable_timer_wakeup(WorkingData::kTimeBetweenMeasurements_ms * 1000);
+    esp_deep_sleep_start();
+}
+
 void setup()
 {
     Serial.begin(115200);
+
+    // disable saving wifi details into Flash as it wears it down and is anyway unreliable
+    // so we store details in NVS instead by ourselves
+    WiFi.persistent(false);
 
     // if started up with button held down, then go into smart config mode
     pinMode(USER_BUTTON, INPUT);
@@ -141,9 +155,6 @@ void setup()
             connected = tryInitI2CAndDevices();
         }
 
-        // some measurements take 2s to make, so give it time
-        delay(5000);
-
         // take measurements
         Measurements *nextMeasurement = &g_workingData.measurements[g_workingData.numMeasurementsRecorded];
         if (takeMeasurements(&lightMeter, &dht12, nextMeasurement))
@@ -167,8 +178,7 @@ void setup()
     // if we still have more measurements to take, then go back to sleep
     if (g_workingData.numMeasurementsRecorded < WorkingData::kNumMeasurementsToTakeBeforeSending)
     {
-        esp_sleep_enable_timer_wakeup(WorkingData::kTimeBetweenMeasurements_ms * 1000);
-        esp_deep_sleep_start();
+        enterDeepSleep();
     }
 
     // if we got this far, it's time to transmit data over wifi
@@ -227,8 +237,7 @@ void setup()
             PRINT("Failed to connect MQTT client.  State = ");
             PRINT(mqttClient.state());
             PRINTLN(". Retrying in 5s...");
-            esp_sleep_enable_timer_wakeup(5000);
-            esp_light_sleep_start();
+            delay(5000);
         }
 
         // we're connected, now send!
@@ -252,8 +261,7 @@ void setup()
     }
 
     // finally, go back to sleep
-    esp_sleep_enable_timer_wakeup(WorkingData::kTimeBetweenMeasurements_ms * 1000);
-    esp_deep_sleep_start();
+    enterDeepSleep();
 }
 
 void loop()

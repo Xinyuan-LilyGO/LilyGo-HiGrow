@@ -48,11 +48,34 @@ bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasure
         return false;
     }
 
-    outMeasurements->lux = lightMeter->readLightLevel();
-    outMeasurements->temperature_C = dht12->readTemperature();
-    outMeasurements->humidity = dht12->readHumidity();
+    // try to read these several times as sometimes they return NaN
+    constexpr uint8_t kMaxNumAttempts = 10;
+    uint8_t numAttempts = 0;
+    constexpr uint32_t kTimeBetweenAttempts_ms = 1000;
+    while (true)
+    {
+        outMeasurements->temperature_C = dht12->readTemperature();
+        outMeasurements->humidity = dht12->readHumidity();
+        if (!isnan(outMeasurements->temperature_C) && //
+            !isnan(outMeasurements->humidity))
+        {
+            break;
+        }
 
-    // turn the ADC on
+        ++numAttempts;
+        if (numAttempts >= kMaxNumAttempts)
+        {
+            Serial.println("Measurements failed.");
+            return false;
+        }
+            
+        Serial.println("DHT12 measurements failed, retrying...");
+        delay(kTimeBetweenAttempts_ms);
+    }
+
+    outMeasurements->lux = lightMeter->readLightLevel();
+
+    // turn the ADC on to take other measurements
     adc_power_on();
     outMeasurements->soil = readSoil();
     outMeasurements->salt = readSalt();
