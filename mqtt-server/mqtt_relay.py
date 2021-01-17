@@ -1,6 +1,6 @@
 import paho.mqtt.client as mqtt
 import time
-import database
+from database import Database
 import logging
 import os
 import threading
@@ -15,15 +15,13 @@ class MQTTRelay(QObject):
     def __init__(self, topic_filter='#',
                  mqtt_host="test.mosquitto.org",
                  mqt_host_port=1883,
-                 enable_logging=True,
-                 database=None):
+                 enable_logging=True):
         """
         optionally set a topic filter as [topic_filter]
         by default subscribe to all messages ('#'), not recommended (https://www.hivemq.com/blog/mqtt-essentials-part-5-mqtt-topics-best-practices/)
         """
         super(MQTTRelay, self).__init__()
         
-        self.__database:Database = database
         self.__client = None
         # thread that runs the "loop_forever" method of the mqtt client
         self.__loop_thread = None
@@ -64,9 +62,6 @@ class MQTTRelay(QObject):
     def __on_message(self, client, user_data, message):
         logging.info("Message recieved. topic={}, qos={}, retain={}, length={}".format(
                      message.topic, message.qos, message.retain, len(message.payload)))
-
-        if self.__database is not None:
-            self.__database.write_message(message.topic, message.payload)
 
         init_num_topics = len(self.__observed_topics)
         self.__observed_topics.add(message.topic)

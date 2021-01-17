@@ -9,6 +9,7 @@ import struct
 class Database:
 
     __BYTES_DB_FORMAT_STRING = '-'
+    __UTF8_DB_FORMAT_STRING = 'utf8'
 
     def __init__(self):
         self.__open = False
@@ -117,8 +118,17 @@ class Database:
                     return []
 
                 # first column holds the datetime, second is the data (bytes), third is the format string
-                # if the format string is not __BYTES_DB_FORMAT_STRING then try to unpack the data
-                return [[d[0], d[1] if d[2] == Database.__BYTES_DB_FORMAT_STRING else struct.unpack(d[2], d[1])[0]] for d in data]
+                data_decoded = []
+                for d in data:
+                    timestamp = d[0]
+                    if d[2] == Database.__BYTES_DB_FORMAT_STRING:
+                        data = d[1]
+                    elif d[2] == Database.__UTF8_DB_FORMAT_STRING:
+                        data = d[1].decode('utf-8')
+                    else:
+                        data = struct.unpack(d[2], d[1])[0]
+                    data_decoded.append([timestamp, data])
+                return data_decoded
         except Exception as e:
             logging.error(
                 "Exception when trying to get topics list: {}".format(e))
@@ -127,20 +137,23 @@ class Database:
     def write_message(self, topic, data):
         if isinstance(data, bytes) or isinstance(data, bytearray):
             data_bytes = data
-            format_string = DataBase.__BYTES_DB_FORMAT_STRING
+            format_string = Database.__BYTES_DB_FORMAT_STRING
         elif isinstance(data, float):
             data_bytes = bytearray(struct.pack("f", data))
             format_string = 'f'
         elif isinstance(data, int):
             data_bytes = bytearray(struct.pack("i", data))
             format_string = 'i'
+        elif isinstance(data, str):
+            data_bytes = data.encode('utf-8')
+            format_string = Database.__UTF8_DB_FORMAT_STRING
         else:
             raise Exception("data must be bytes, bytearray, float or int.")
         return self.__write_message(topic, data_bytes, format_string)
 
     def __write_message(self, topic, data: bytes, format_string: str):
-        try:
-            with self.__db_lock:
+        with self.__db_lock:
+            try:
                 # insert the message
                 sql = "INSERT INTO `events` (`topic`, `data`, `format_string`) " \
                     "VALUES (?, ?, ?);"
@@ -148,13 +161,20 @@ class Database:
                     sql, (topic, sqlite3.Binary(data), format_string,))
                 self.__connection.commit()
 
+            except Exception as e:
+                logging.error(
+                    "Exception when inserting row with topic {}: {}".format(topic, e))
+                return False
+
+            try:
                 # insert the topic to keep a list of unique topics
                 sql = "INSERT INTO 'topics' ('name') VALUES (?)"
                 self.__cursor.execute(sql, (topic,))
                 self.__connection.commit()
 
+            except Exception as e:
+                # this might not be an error, because if the topic already exists it will
+                # not be reinserted since we require it to be unique
+                logging.error(
+                    "Exception when inserting row with topic {}: {}".format(topic, e))
             return True
-        except Exception as e:
-            logging.error(
-                "Exception when inserting row with topic {}: {}".format(topic, e))
-            return False

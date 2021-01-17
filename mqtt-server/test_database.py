@@ -35,8 +35,8 @@ def test_write_to_database_and_get_topics():
         os.remove(db_name)
     assert db.open(db_name)
     assert db.is_open()
-    db.write_message("b_topic", "mydata".encode('utf-8'))
-    db.write_message("a_topic", "mydata".encode('utf-8'))
+    db.write_message("b_topic", "mydata")
+    db.write_message("a_topic", "mydata")
 
     # check that the topics are all present and ordered by the topic (alphabetical order)
     topics = db.get_topics()
@@ -56,22 +56,30 @@ def test_write_to_database_and_get_data():
         os.remove(db_name)
     assert db.open(db_name)
     assert db.is_open()
-    db.write_message("d_topic", 1.0)
-    db.write_message("d_topic", 2.0)
-    db.write_message("d_topic", 3.0)
+    db.write_message("f_topic", 1.0)
+    db.write_message("f_topic", 2.0)
+    db.write_message("f_topic", 3.0)
+    db.write_message("s_topic", "text")
 
     # check that the topic was recorded
     topics = db.get_topics()
-    assert len(topics) == 1
-    topics[0] == "d_topic"
-
-    # also check that the data is correct
-    data = db.get_data("d_topic")
+    assert len(topics) == 2
+    topics[0] == "f_topic"
+    topics[1] == "s_topic"
+    
+    # also check that the data is correct (floats)
+    data = db.get_data("f_topic")
     assert data is not None
     assert len(data) == 3
     assert data[0][1] == 1.0
     assert data[1][1] == 2.0
     assert data[2][1] == 3.0
+
+    # also check that the data is correct (string)
+    data = db.get_data("s_topic")
+    assert data is not None
+    assert len(data) == 1
+    assert data[0][1] == "text"
 
     db.close()
     assert not db.is_open()
