@@ -26,11 +26,13 @@ def new_data_callback(topic, data):
     data_float = float(data_str)
     database.write_message(topic, data_float)
     print("New data: {} on topic {}".format(data_float, topic))
-    # if topic in topic_data:
-    #     if len(topic_data[topic][0]) == 0:
-    #         t = 0
-    #         topic_data[topic][0].append(t)
-    #         topic_data[topic][1].append(float(data))
+    if topic in topic_data:
+        if len(topic_data[topic][0]) == 0:
+            t = 0
+        else:
+            t = topic_data[topic][0][-1] + 1
+        topic_data[topic][0].append(t)
+        topic_data[topic][1].append(float(data))
 
 
 app = Flask(__name__)
@@ -84,10 +86,9 @@ def get_data(topic_root, topic_sub):
 @app.route('/dashboard/')
 def show_dashboard():
     global topic_data
-    plots = {}
+    plots = []
     for topic, data in topic_data.items():
-        plots[topic] = make_ajax_plot(topic, data)
-
+        plots.append(make_ajax_plot(topic, data))
     dash = render_template('dashboard.html', plots=plots)
     return dash
 
@@ -108,12 +109,10 @@ def make_ajax_plot(topic, data):
 
 def make_plot(topic, data):
     plot = figure(plot_height=300, sizing_mode='scale_width')
-    x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    y = [2**v for v in x]
-    #x = data[0]
-    #y = data[1]
+    x = data[0]
+    y = data[1]
     plot.line(x, y, line_width=4)
-    #plot.title.text = topic
+    plot.title.text = topic
     script, div = components(plot)
     return script, div
 
