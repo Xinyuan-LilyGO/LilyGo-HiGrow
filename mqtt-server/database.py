@@ -3,9 +3,12 @@ import logging
 import threading
 import queue
 import time
+import struct
 
 
 class Database:
+
+    __BYTES_DB_FORMAT_STRING = '-'
 
     def __init__(self):
         self.__open = False
@@ -22,7 +25,8 @@ class Database:
     def __open_connection_and_setup_schema(self, filename):
         try:
             with self.__db_lock:
-                self.__connection = sqlite3.connect(filename, check_same_thread=False)
+                self.__connection = sqlite3.connect(
+                    filename, check_same_thread=False)
                 self.__cursor = self.__connection.cursor()
                 self.__open = True
         except Exception as e:
@@ -45,7 +49,8 @@ class Database:
                 "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,"
                 "topic TEXT NOT NULL,"
                 "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,"
-                "data BLOB"
+                "data BLOB,"
+                "format_string STRING"
                 ");")
             self.__connection.commit()
 
@@ -92,16 +97,55 @@ class Database:
                 "Exception when trying to get topics list: {}".format(e))
             return []
 
-    def write_message(self, topic, data: bytes):
-        return self.__write_message(topic, data)
+    def get_data(self, topic, datetime_from=None, datetime_to=None):
+        """
+        Get all the data from the databaes for the given [topic] betwteen times
+        [datetime_from] and [datetime_to].
+        @param topic the topic string
+        @param datetime_from the earliest time to get data from.  If None, returns data from (and including) the earliest recording of the database
+        @param datetime_fo the latest time to get data from.  If None, returns data up until (and including) the most recent recording
+        @returns a list of the data points
+        """
+        try:
+            with self.__db_lock:
+                time_column = "timestamp"
+                sql = "SELECT `{}`, `data`, `format_string` FROM `events` WHERE `topic` == ? ORDER BY `{}` ASC".format(
+                    time_column, time_column)
+                self.__cursor.execute(sql, (topic,))
+                data = self.__cursor.fetchall()
+                if data is None or len(data) == 0:
+                    return []
 
-    def __write_message(self, topic, data: bytes):
+                # first column holds the datetime, second is the data (bytes), third is the format string
+                # if the format string is not __BYTES_DB_FORMAT_STRING then try to unpack the data
+                return [[d[0], d[1] if d[2] == Database.__BYTES_DB_FORMAT_STRING else struct.unpack(d[2], d[1])[0]] for d in data]
+        except Exception as e:
+            logging.error(
+                "Exception when trying to get topics list: {}".format(e))
+            return []
+
+    def write_message(self, topic, data):
+        if isinstance(data, bytes) or isinstance(data, bytearray):
+            data_bytes = data
+            format_string = DataBase.__BYTES_DB_FORMAT_STRING
+        elif isinstance(data, float):
+            data_bytes = bytearray(struct.pack("f", data))
+            format_string = 'f'
+        elif isinstance(data, int):
+            data_bytes = bytearray(struct.pack("i", data))
+            format_string = 'i'
+        else:
+            raise Exception("data must be bytes, bytearray, float or int.")
+        return self.__write_message(topic, data_bytes, format_string)
+
+    def __write_message(self, topic, data: bytes, format_string: str):
         try:
             with self.__db_lock:
                 # insert the message
-                sql = "INSERT INTO 'events' (topic, data) " \
-                    "VALUES (?, ?);"
-                self.__cursor.execute(sql, (topic, sqlite3.Binary(data),))
+                sql = "INSERT INTO `events` (`topic`, `data`, `format_string`) " \
+                    "VALUES (?, ?, ?);"
+                self.__cursor.execute(
+                    sql, (topic, sqlite3.Binary(data), format_string,))
                 self.__connection.commit()
 
                 # insert the topic to keep a list of unique topics
