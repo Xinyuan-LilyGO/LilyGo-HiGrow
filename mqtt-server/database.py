@@ -16,7 +16,7 @@ class Database:
         self.__cursor = None
         self.__db_lock = threading.Lock()
 
-    def open(self, filename, threaded=False):
+    def open(self, filename):
         return self.__open_connection_and_setup_schema(filename)
 
     def is_open(self):
