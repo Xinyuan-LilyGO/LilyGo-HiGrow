@@ -14,6 +14,8 @@
 #include "time_helpers.h"
 #include "pins.h"
 
+//#define TTGO_DEBUG_PRINT
+
 BH1750 lightMeter(0x23); //0x23
 DHT12 dht12(DHT12_PIN, true);
 WiFiClient espClient;
@@ -174,7 +176,7 @@ void setup()
         Measurements *nextMeasurement = &g_workingData.measurements[g_workingData.numMeasurementsRecorded];
         if (takeMeasurements(&lightMeter, &dht12, nextMeasurement))
         {
-#if 0
+#ifdef TTGO_DEBUG_PRINT
             PRINTLN(nextMeasurement->lux);
             PRINTLN(nextMeasurement->humidity);
             PRINTLN(nextMeasurement->salt);
