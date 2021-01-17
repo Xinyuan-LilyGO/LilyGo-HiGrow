@@ -32,7 +32,7 @@ RTC_DATA_ATTR struct WorkingData
     Measurements measurements[kNumMeasurementsToTakeBeforeSending];
     uint8_t numMeasurementsRecorded = 0;
 
-    static constexpr uint32_t kTimeBetweenMeasurements_ms = 30000;
+    static constexpr uint32_t kTimeBetweenMeasurements_ms = 10000;
     //TmAndMillis globalTimeReference;
     bool hasGlobalTimeReference = false;
 
@@ -102,6 +102,18 @@ void publishMessage(const char *subTopic, const char *valueFormat, T value)
     PRINT(" ");
     PRINTLN(valueBuffer);
     mqttClient.publish(topicBuffer, valueBuffer);
+}
+
+template <typename T>
+void publishMessage(const char *subTopic, const char *dataTypeString, const T *data)
+{
+    static char topicBuffer[100];
+    sprintf(topicBuffer, "%s/%s", g_mqttTopicRoot, subTopic);
+    const uint8_t *dataStart = (uint8_t *)data;
+    PRINT(topicBuffer);
+    PRINT(" ");
+    PRINTLN(*data);
+    mqttClient.publish(topicBuffer, dataStart, sizeof(T));
 }
 
 void enterDeepSleep()
@@ -249,6 +261,14 @@ void setup()
         for (size_t i = 0; i < g_workingData.numMeasurementsRecorded; ++i)
         {
             const Measurements &measurements = g_workingData.measurements[i];
+            // publishMessage<float>("battery_mV", &measurements.battery_mV);
+            // publishMessage<float>("humidity", &measurements.humidity);
+            // publishMessage<float>("lux", &measurements.lux);
+            // publishMessage<float>("salt", &measurements.salt);
+            // publishMessage<float>("soil", &measurements.soil);
+            // publishMessage<float>("temperature_C", &measurements.temperature_C);
+            // publishMessage<uint32_t>("timestamp_ms", &measurements.timestamp_ms);
+
             publishMessage<float>("battery_mV", "%.3f", measurements.battery_mV);
             publishMessage<float>("humidity", "%.3f", measurements.humidity);
             publishMessage<float>("lux", "%.3f", measurements.lux);
