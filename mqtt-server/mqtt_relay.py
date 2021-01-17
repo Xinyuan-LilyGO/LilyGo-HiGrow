@@ -13,41 +13,31 @@ class MQTTRelay(QObject):
     new_data = pyqtSignal(str, bytes)
 
     def __init__(self, topic_filter='#',
-                 database_path="databases",
-                 database_name="database.db",
                  mqtt_host="test.mosquitto.org",
                  mqt_host_port=1883,
-                 enable_logging=True):
+                 enable_logging=True,
+                 database=None):
         """
         optionally set a topic filter as [topic_filter]
         by default subscribe to all messages ('#'), not recommended (https://www.hivemq.com/blog/mqtt-essentials-part-5-mqtt-topics-best-practices/)
         """
         super(MQTTRelay, self).__init__()
         
-        self.__database = None
+        self.__database:Database = database
         self.__client = None
         # thread that runs the "loop_forever" method of the mqtt client
         self.__loop_thread = None
         self.__topic_filter = topic_filter
-        self.__database_path = database_path
-        self.__database_name = database_name
         self.__mqtt_host = mqtt_host
         self.__mqt_host_port = mqt_host_port
         self.__enable_logging = enable_logging
 
         self.__observed_topics = set()
 
-    def initialise(self):
+    def get_observed_topics(self):
+        self.__observed_topics
 
-        # connect to database
-        if not os.path.exists(self.__database_path):
-            logging.info('Creating directory "{}"'.format(
-                self.__database_path))
-            os.mkdir(self.__database_path)
-        db_path = os.path.join(self.__database_path, self.__database_name)
-        logging.info("Connecting to database '{}'".format(db_path))
-        self.__database = database.Database()
-        self.__database.open(db_path)
+    def initialise(self):
 
         # connect to MQTT broker and subscribe to all messages
         self.__client = mqtt.Client("Server")
@@ -70,12 +60,13 @@ class MQTTRelay(QObject):
             self.__loop_thread.join()
             self.__loop_thread = None
         logging.info("MQTT thread stopped")
-        self.__database.close()
 
     def __on_message(self, client, user_data, message):
         logging.info("Message recieved. topic={}, qos={}, retain={}, length={}".format(
                      message.topic, message.qos, message.retain, len(message.payload)))
-        self.__database.write_message(message.topic, message.payload)
+
+        if self.__database is not None:
+            self.__database.write_message(message.topic, message.payload)
 
         init_num_topics = len(self.__observed_topics)
         self.__observed_topics.add(message.topic)
