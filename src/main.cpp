@@ -118,6 +118,7 @@ void enterDeepSleep()
 void setup()
 {
     // setup GPIOs
+    pinMode(POWER_CTRL, OUTPUT);
     pinMode(USER_BUTTON, INPUT);
     pinMode(SOIL_PIN, ANALOG);
     pinMode(SALT_PIN, ANALOG);
