@@ -1,18 +1,36 @@
 from flask import Flask
+from flask.json import JSONEncoder
 from flask import render_template, jsonify, request
 from bokeh.models.sources import AjaxDataSource
+from bokeh.models.formatters import DatetimeTickFormatter
 from bokeh.plotting import figure
 from bokeh.embed import components
 from mqtt_relay import MQTTRelay
 from PyQt5.QtWidgets import QApplication
 import threading
 import os
+from datetime import datetime
 import logging
 import database
 
 
+MAX_DATA_LENGTH = 5000
 topic_data = {}
 database = database.Database()
+
+
+class CustomJSONEncoder(JSONEncoder):
+    def default(self, obj):
+        try:
+            if isinstance(obj, datetime):
+                # bokeh graphs need milliseconds since epoch as the datetime
+                return (obj - datetime.utcfromtimestamp(0)).total_seconds() * 1000
+            iterable = iter(obj)
+        except TypeError:
+            pass
+        else:
+            return list(iterable)
+        return JSONEncoder.default(self, obj)
 
 
 def new_topic_callback(topic):
@@ -27,15 +45,13 @@ def new_data_callback(topic, data):
     database.write_message(topic, data_float)
     print("New data: {} on topic {}".format(data_float, topic))
     if topic in topic_data:
-        if len(topic_data[topic][0]) == 0:
-            t = 0
-        else:
-            t = topic_data[topic][0][-1] + 1
-        topic_data[topic][0].append(t)
-        topic_data[topic][1].append(float(data))
+        the_data = topic_data[topic]
+        the_data[0].append(datetime.now())
+        the_data[1].append(float(data_float))
 
 
 app = Flask(__name__)
+app.json_encoder = CustomJSONEncoder
 qtapp = QApplication([])
 
 if __name__ == "__main__":
@@ -55,11 +71,13 @@ if __name__ == "__main__":
     for topic in topics:
         data = database.get_data(topic)
         the_data = [[], []]
-        t = 0
         for d in data:
-            the_data[0].append(t)
+            dt = datetime.strptime(d[0], '%Y-%m-%d %H:%M:%S')
+            the_data[0].append(dt)
             the_data[1].append(d[1])
-            t += 1
+            if len(the_data[0]) > MAX_DATA_LENGTH:
+                the_data[0] = the_data[0][1:]
+                the_data[1] = the_data[1][1:]
         topic_data[topic] = the_data
 
     relay = MQTTRelay(topic_filter="otsensor/+")
@@ -89,20 +107,32 @@ def show_dashboard():
     plots = []
     for topic, data in topic_data.items():
         plots.append(make_ajax_plot(topic, data))
+        #plots.append(make_plot(topic, data))
     dash = render_template('dashboard.html', plots=plots)
     return dash
 
 
 def make_ajax_plot(topic, data):
-    #topic_escaped = topic.replace('/', '&sol;')
     source = AjaxDataSource(data_url=request.url_root + 'data/{}'.format(topic),
-                            polling_interval=2000, mode='replace')
+                            polling_interval=10000, mode='replace')
 
     source.data = dict(x=data[0], y=data[1])
     plot = figure(plot_height=300, sizing_mode='scale_width', title=topic)
     plot.line('x', 'y', source=source, line_width=4)
     plot.title.text = topic
     plot.title.text_font_size = '20px'
+    fs_days = "%Y-%m-%d"
+    fs_hours = "%Y-%m-%d %H"
+    fs_mins = "%Y-%m-%d %H:%M"
+    fs_secs = "%Y-%m-%d %H:%M:%S"
+    plot.xaxis.formatter = DatetimeTickFormatter(
+        seconds=[fs_secs],
+        minutes=[fs_mins],
+        hours=[fs_hours],
+        days=[fs_days],
+        months=[fs_days],
+        years=[fs_days],
+    )
 
     script, div = components(plot)
     return script, div
@@ -114,6 +144,19 @@ def make_plot(topic, data):
     y = data[1]
     plot.line(x, y, line_width=4)
     plot.title.text = topic
+    plot.title.text_font_size = '20px'
+    fs_days = "%Y-%m-%d"
+    fs_hours = "%Y-%m-%d %H"
+    fs_mins = "%Y-%m-%d %H:%M"
+    fs_secs = "%Y-%m-%d %H:%M:%S"
+    plot.xaxis.formatter = DatetimeTickFormatter(
+        seconds=[fs_secs],
+        minutes=[fs_mins],
+        hours=[fs_hours],
+        days=[fs_days],
+        months=[fs_days],
+        years=[fs_days],
+    )
     script, div = components(plot)
     return script, div
 
