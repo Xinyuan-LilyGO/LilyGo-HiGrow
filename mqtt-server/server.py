@@ -102,6 +102,7 @@ def make_ajax_plot(topic, data):
     plot = figure(plot_height=300, sizing_mode='scale_width', title=topic)
     plot.line('x', 'y', source=source, line_width=4)
     plot.title.text = topic
+    plot.title.text_font_size = '20px'
 
     script, div = components(plot)
     return script, div
