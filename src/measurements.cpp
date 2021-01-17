@@ -68,11 +68,14 @@ bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasure
             Serial.println("Measurements failed.");
             return false;
         }
-            
+
         Serial.println("DHT12 measurements failed, retrying...");
         delay(kTimeBetweenAttempts_ms);
     }
 
+    // we have to read twice as the first is always 0
+    outMeasurements->lux = lightMeter->readLightLevel();
+    delay(1000);
     outMeasurements->lux = lightMeter->readLightLevel();
 
     // turn the ADC on to take other measurements
