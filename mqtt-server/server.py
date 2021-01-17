@@ -12,6 +12,7 @@ import database
 
 
 topic_data = {}
+database = database.Database()
 
 
 def new_topic_callback(topic):
@@ -20,7 +21,11 @@ def new_topic_callback(topic):
 
 
 def new_data_callback(topic, data):
-    print("New data: {} on topic {}\n".format(data, topic))
+    # for now, all data is sent as formatted strings
+    data_str = data.decode('utf-8')
+    data_float = float(data_str)
+    database.write_message(topic, data_float)
+    print("New data: {} on topic {}".format(data_float, topic))
     # if topic in topic_data:
     #     if len(topic_data[topic][0]) == 0:
     #         t = 0
@@ -41,16 +46,34 @@ if __name__ == "__main__":
 
     db_path = os.path.join(database_path, database_name)
     logging.info("Connecting to database '{}'".format(db_path))
-    database = database.Database()
     database.open(db_path)
+
+    # first off, get all existing data
+    topics = database.get_topics()
+    for topic in topics:
+        data = database.get_data(topic)
+        the_data = [[], []]
+        t = 0
+        for d in data:
+            the_data[0].append(t)
+            the_data[1].append(d[1])
+            t += 1
+        topic_data[topic] = the_data
 
     relay = MQTTRelay(topic_filter="otsensor/+")
     relay.new_data.connect(new_data_callback)
     relay.new_topic.connect(new_topic_callback)
 
 
-@app.route('/data/<topic>', methods=['POST'])
-def data():
+@app.route('/topics/')
+def get_topics():
+    return jsonify(database.get_topics())
+
+
+@app.route('/data/<topic_root>/<topic_sub>/', methods=['POST'])
+def get_data(topic_root, topic_sub):
+    global topic_data
+    topic = topic_root + "/" + topic_sub
     if topic in topic_data:
         data = topic_data[topic]
         return jsonify(x=data[0], y=data[1])
@@ -60,32 +83,37 @@ def data():
 
 @app.route('/dashboard/')
 def show_dashboard():
+    global topic_data
     plots = {}
-    for topic in relay.get_observed_topics():
-        plots[topic] = make_ajax_plot()
+    for topic, data in topic_data.items():
+        plots[topic] = make_ajax_plot(topic, data)
 
     dash = render_template('dashboard.html', plots=plots)
     return dash
 
 
-def make_ajax_plot(topic):
+def make_ajax_plot(topic, data):
+    #topic_escaped = topic.replace('/', '&sol;')
     source = AjaxDataSource(data_url=request.url_root + 'data/{}'.format(topic),
                             polling_interval=2000, mode='replace')
 
-    source.data = dict(x=[], y=[])
-
+    source.data = dict(x=data[0], y=data[1])
     plot = figure(plot_height=300, sizing_mode='scale_width', title=topic)
     plot.line('x', 'y', source=source, line_width=4)
+    plot.title.text = topic
 
     script, div = components(plot)
     return script, div
 
 
-def make_plot():
+def make_plot(topic, data):
     plot = figure(plot_height=300, sizing_mode='scale_width')
     x = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     y = [2**v for v in x]
+    #x = data[0]
+    #y = data[1]
     plot.line(x, y, line_width=4)
+    #plot.title.text = topic
     script, div = components(plot)
     return script, div
 
