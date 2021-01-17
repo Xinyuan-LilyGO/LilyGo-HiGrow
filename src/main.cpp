@@ -32,7 +32,7 @@ RTC_DATA_ATTR struct WorkingData
     Measurements measurements[kNumMeasurementsToTakeBeforeSending];
     uint8_t numMeasurementsRecorded = 0;
 
-    static constexpr uint32_t kTimeBetweenMeasurements_ms = 2000;
+    static constexpr uint32_t kTimeBetweenMeasurements_ms = 30000;
     //TmAndMillis globalTimeReference;
     bool hasGlobalTimeReference = false;
 
