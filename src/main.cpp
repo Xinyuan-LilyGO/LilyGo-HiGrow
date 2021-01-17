@@ -30,11 +30,11 @@ char g_mqttTopicRoot[1024] = "otsensor";
 RTC_DATA_ATTR struct WorkingData
 {
     // storage space for measurements
-    static constexpr uint8_t kNumMeasurementsToTakeBeforeSending = 2;
+    static constexpr uint8_t kNumMeasurementsToTakeBeforeSending = 1;
     Measurements measurements[kNumMeasurementsToTakeBeforeSending];
     uint8_t numMeasurementsRecorded = 0;
 
-    static constexpr uint32_t kTimeBetweenMeasurements_ms = 10000;
+    static constexpr uint32_t kTimeBetweenMeasurements_ms = 30000;
     //TmAndMillis globalTimeReference;
     bool hasGlobalTimeReference = false;
 
@@ -121,7 +121,9 @@ void publishMessage(const char *subTopic, const char *dataTypeString, const T *d
 void enterDeepSleep()
 {
     //inspired by https://www.reddit.com/r/esp32/comments/exgi32/esp32_ultralow_power_mode/
-    PRINTLN("Powering down...");
+    PRINT("Powering down for ");
+    PRINT(WorkingData::kTimeBetweenMeasurements_ms / 1000);
+    PRINTLN(" seconds...");
     digitalWrite(POWER_CTRL, LOW);
     WiFi.disconnect(true); // Keeps WiFi APs happy
     WiFi.mode(WIFI_OFF);   // Switch WiFi off
