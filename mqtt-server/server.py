@@ -14,6 +14,7 @@ import logging
 import database
 
 
+DEFAULT_MQTT_BROKER = "ttgo-server.local"
 DEFAULT_FLASK_PORT = 1234
 DEFAULT_DB_PATH = os.path.join("databases", "database.db")
 MAX_DATA_LENGTH = 5000
@@ -136,7 +137,8 @@ if __name__ == "__main__":
 
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--port", dest="flask_port", help="The port that the web interface is served on", type=int, default=DEFAULT_FLASK_PORT)
-    argparser.add_argument("--db", dest="db_path", help="The port that the web interface is served on", type=str, default=DEFAULT_DB_PATH)
+    argparser.add_argument("--db", dest="db_path", help="Path to the database file to be used", type=str, default=DEFAULT_DB_PATH)
+    argparser.add_argument("--broker", dest="mqtt_broker", help="The MQTT broker URI", type=str, default=DEFAULT_MQTT_BROKER)
     args = argparser.parse_args()
 
     # make database instance
@@ -166,7 +168,9 @@ if __name__ == "__main__":
         topic_data[topic] = the_data
 
     # start the MQTT relay
-    relay = MQTTRelay(topic_filter="otsensor/+")
+    relay = MQTTRelay(
+        topic_filter="sensor0/+",
+        mqtt_host=args.mqtt_broker)
     relay.register_new_topic_callback(new_topic_callback)
     relay.register_new_data_callback(new_data_callback)
     relay.initialise()
