@@ -8,13 +8,15 @@ from bokeh.embed import components
 from mqtt_relay import MQTTRelay
 from PyQt5.QtWidgets import QApplication
 import threading
+import argparse
 import os
 from datetime import datetime
 import logging
 import database
 
 
-FLASK_PORT = 8080
+DEFAULT_FLASK_PORT = 1234
+DEFAULT_DB_PATH = os.path.join("databases", "database.db")
 MAX_DATA_LENGTH = 5000
 topic_data = {}
 database = database.Database()
@@ -54,36 +56,6 @@ def new_data_callback(topic, data):
 app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
 qtapp = QApplication([])
-
-if __name__ == "__main__":
-    # make database instance
-    database_path = "databases"
-    database_name = "database.db"
-    if not os.path.exists(database_path):
-        logging.info('Creating directory "{}"'.format(database_path))
-        os.mkdir(database_path)
-
-    db_path = os.path.join(database_path, database_name)
-    logging.info("Connecting to database '{}'".format(db_path))
-    database.open(db_path)
-
-    # first off, get all existing data
-    topics = database.get_topics()
-    for topic in topics:
-        data = database.get_data(topic)
-        the_data = [[], []]
-        for d in data:
-            dt = datetime.strptime(d[0], '%Y-%m-%d %H:%M:%S')
-            the_data[0].append(dt)
-            the_data[1].append(d[1])
-            if len(the_data[0]) > MAX_DATA_LENGTH:
-                the_data[0] = the_data[0][1:]
-                the_data[1] = the_data[1][1:]
-        topic_data[topic] = the_data
-
-    relay = MQTTRelay(topic_filter="otsensor/+")
-    relay.new_data.connect(new_data_callback)
-    relay.new_topic.connect(new_topic_callback)
 
 
 @app.route('/topics/')
@@ -164,9 +136,44 @@ def make_plot(topic, data):
 
 if __name__ == "__main__":
 
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument("--port", dest="flask_port", help="The port that the web interface is served on", type=int, default=DEFAULT_FLASK_PORT)
+    argparser.add_argument("--db", dest="db_path", help="The port that the web interface is served on", type=str, default=DEFAULT_DB_PATH)
+    args = argparser.parse_args()
+
+    # make database instance
+    db_path = args.db_path
+    database_path = os.path.dirname(db_path)
+    database_name = os.path.basename(db_path)
+    if not os.path.exists(database_path):
+        logging.info('Creating directory "{}"'.format(database_path))
+        os.mkdir(database_path)
+
+    db_path = os.path.join(database_path, database_name)
+    logging.info("Connecting to database '{}'".format(db_path))
+    database.open(db_path)
+
+    # first off, get all existing data
+    topics = database.get_topics()
+    for topic in topics:
+        data = database.get_data(topic)
+        the_data = [[], []]
+        for d in data:
+            dt = datetime.strptime(d[0], '%Y-%m-%d %H:%M:%S')
+            the_data[0].append(dt)
+            the_data[1].append(d[1])
+            if len(the_data[0]) > MAX_DATA_LENGTH:
+                the_data[0] = the_data[0][1:]
+                the_data[1] = the_data[1][1:]
+        topic_data[topic] = the_data
+
+    # start the MQTT relay
+    relay = MQTTRelay(topic_filter="otsensor/+")
+    relay.new_data.connect(new_data_callback)
+    relay.new_topic.connect(new_topic_callback)
     relay.initialise()
     threading.Thread(target=app.run, kwargs={
-                     'port': FLASK_PORT,
+                     'port': args.flask_port,
                      'debug': False,
                      'use_reloader': False,
                      'host': '0.0.0.0'}).start()
