@@ -21,10 +21,10 @@ DHT12 dht12(DHT12_PIN, true);
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 
-constexpr char kMQTTBroker[] = "test.mosquitto.org";
+constexpr char kMQTTBroker[] = "ttgo-server";
 constexpr uint16_t kMQTTBrokerPort = 1883;
-char g_mqttName[1024] = "otdevice";
-char g_mqttTopicRoot[1024] = "otsensor";
+char g_mqttName[1024] = "sensor0";
+char g_mqttTopicRoot[1024] = "sensor0";
 
 // working data stored in the RTC memory
 RTC_DATA_ATTR struct WorkingData

@@ -14,6 +14,7 @@ import logging
 import database
 
 
+FLASK_PORT = 8080
 MAX_DATA_LENGTH = 5000
 topic_data = {}
 database = database.Database()
@@ -165,7 +166,10 @@ if __name__ == "__main__":
 
     relay.initialise()
     threading.Thread(target=app.run, kwargs={
-                     'port': 80, 'debug': False, 'use_reloader': False}).start()
+                     'port': FLASK_PORT,
+                     'debug': False,
+                     'use_reloader': False,
+                     'host': '0.0.0.0'}).start()
     print("Flask server started...")
 
     # we need to run the Qt application in order to have Qt signals work properly
