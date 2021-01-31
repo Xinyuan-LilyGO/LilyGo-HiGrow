@@ -34,14 +34,22 @@ RTC_DATA_ATTR struct WorkingData
     Measurements measurements[kNumMeasurementsToTakeBeforeSending];
     uint8_t numMeasurementsRecorded = 0;
 
-    static constexpr uint32_t kTimeBetweenMeasurements_ms = 30000;
+    static constexpr uint32_t kTimeBetweenMeasurements_ms = 60000;
     //TmAndMillis globalTimeReference;
     bool hasGlobalTimeReference = false;
 
 } g_workingData;
 
-#define PRINT(x) Serial.print(x)
-#define PRINTLN(x) Serial.println(x)
+#define PRINT(x)         \
+    if (Serial)          \
+    {                    \
+        Serial.print(x); \
+    }
+#define PRINTLN(x)         \
+    if (Serial)            \
+    {                      \
+        Serial.println(x); \
+    }
 
 bool tryInitI2CAndDevices()
 {
@@ -286,7 +294,6 @@ void setup()
         g_workingData.numMeasurementsRecorded = 0;
 
         mqttClient.disconnect();
-        //WiFi.disconnect();
     }
 
     // finally, go back to sleep

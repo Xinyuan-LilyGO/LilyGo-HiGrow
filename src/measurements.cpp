@@ -85,5 +85,6 @@ bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasure
     outMeasurements->battery_mV = readBattery();
     adc_power_off();
 
+    outMeasurements->timestamp_ms = millis();
     return true;
 }
