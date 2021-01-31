@@ -11,6 +11,13 @@ A raspberry pi is set up as the server.  It is
  - running an mDNS service
 
 
+## Running the server
+
+Set up the python environment by running `source activate_venv.sh`
+
+On raspberry pi you might need to run to make numpy work correctly (see https://numpy.org/devdocs/user/troubleshooting-importerror.html)
+`sudo apt-get install libatlas-base-dev`
+
 ## Setting up the mDNS service
 
 ```

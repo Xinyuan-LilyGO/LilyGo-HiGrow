@@ -1,6 +1,4 @@
 import paho.mqtt.client as mqtt
-from database import Database
-import asyncio
 import logging
 import threading
 
@@ -47,6 +45,7 @@ class MQTTRelay:
         self.__loop_thread = threading.Thread(
             target=self.__client.loop_forever)
         self.__loop_thread.start()
+
         return True
 
     def uninitialise(self):
@@ -71,10 +70,9 @@ class MQTTRelay:
         self.__observed_topics.add(message.topic)
 
         # if the number of observed topics just increased, notify that we got a new one
-        loop = asyncio.get_event_loop()
         if len(self.__observed_topics) > init_num_topics:
             for new_topic_callback in self.__new_topic_callbacks:
-                loop.call_soon_threadsafe(new_topic_callback, message.topic)
+                threading.Thread(target=new_topic_callback, args=(message.topic,)).start()
 
         for new_data_callback in self.__new_data_callbacks:
-            loop.call_soon_threadsafe(new_data_callback, message.topic, message.payload)
+            threading.Thread(target=new_data_callback, args=(message.topic, message.payload,)).start()
