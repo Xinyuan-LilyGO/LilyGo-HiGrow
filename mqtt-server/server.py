@@ -6,7 +6,6 @@ from bokeh.models.formatters import DatetimeTickFormatter
 from bokeh.plotting import figure
 from bokeh.embed import components
 from mqtt_relay import MQTTRelay
-from PyQt5.QtWidgets import QApplication
 import threading
 import argparse
 import os
@@ -55,7 +54,6 @@ def new_data_callback(topic, data):
 
 app = Flask(__name__)
 app.json_encoder = CustomJSONEncoder
-qtapp = QApplication([])
 
 
 @app.route('/topics/')
@@ -169,19 +167,23 @@ if __name__ == "__main__":
 
     # start the MQTT relay
     relay = MQTTRelay(topic_filter="otsensor/+")
-    relay.new_data.connect(new_data_callback)
-    relay.new_topic.connect(new_topic_callback)
+    relay.register_new_topic_callback(new_topic_callback)
+    relay.register_new_data_callback(new_data_callback)
     relay.initialise()
-    threading.Thread(target=app.run, kwargs={
+
+    start_flask_app_blocking = True
+    if start_flask_app_blocking:
+        app.run(port=args.flask_port,
+        debug=False,
+        use_reloader=False,
+        host='0.0.0.0')
+    else:
+        threading.Thread(target=app.run, kwargs={
                      'port': args.flask_port,
                      'debug': False,
                      'use_reloader': False,
                      'host': '0.0.0.0'}).start()
     print("Flask server started...")
-
-    # we need to run the Qt application in order to have Qt signals work properly
-    print("Starting qt app...")
-    qtapp.exec_()
 
     # close things
     relay.uninitialise()

@@ -1,16 +1,11 @@
 import paho.mqtt.client as mqtt
-import time
 from database import Database
+import asyncio
 import logging
-import os
 import threading
-from PyQt5.QtCore import QObject, pyqtSignal
 
 
-class MQTTRelay(QObject):
-
-    new_topic = pyqtSignal(str)
-    new_data = pyqtSignal(str, bytes)
+class MQTTRelay:
 
     def __init__(self, topic_filter='#',
                  mqtt_host="test.mosquitto.org",
@@ -29,6 +24,9 @@ class MQTTRelay(QObject):
         self.__mqtt_host = mqtt_host
         self.__mqt_host_port = mqt_host_port
         self.__enable_logging = enable_logging
+
+        self.__new_topic_callbacks = []
+        self.__new_data_callbacks = []
 
         self.__observed_topics = set()
 
@@ -59,14 +57,24 @@ class MQTTRelay(QObject):
             self.__loop_thread = None
         logging.info("MQTT thread stopped")
 
+    def register_new_data_callback(self, callback):
+        self.__new_data_callbacks.append(callback)
+
+    def register_new_topic_callback(self, callback):
+        self.__new_topic_callbacks.append(callback)
+
     def __on_message(self, client, user_data, message):
         logging.info("Message recieved. topic={}, qos={}, retain={}, length={}".format(
                      message.topic, message.qos, message.retain, len(message.payload)))
 
         init_num_topics = len(self.__observed_topics)
         self.__observed_topics.add(message.topic)
-        # if the number of observed topics just increased, notify that we got a new one
-        if len(self.__observed_topics) > init_num_topics:
-            self.new_topic.emit(message.topic)
 
-        self.new_data.emit(message.topic, message.payload)
+        # if the number of observed topics just increased, notify that we got a new one
+        loop = asyncio.get_event_loop()
+        if len(self.__observed_topics) > init_num_topics:
+            for new_topic_callback in self.__new_topic_callbacks:
+                loop.call_soon_threadsafe(new_topic_callback, message.topic)
+
+        for new_data_callback in self.__new_data_callbacks:
+            loop.call_soon_threadsafe(new_data_callback, message.topic, message.payload)

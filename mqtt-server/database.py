@@ -1,8 +1,6 @@
 import sqlite3
 import logging
 import threading
-import queue
-import time
 import struct
 
 
