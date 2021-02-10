@@ -4,8 +4,7 @@ Description=MQTT and Flask server for TTGO
 [Service]
 User=ttgo
 WorkingDirectory=/home/pi/Code/TTGO-HiGrow/mqtt-server
-Environment="PATH=/home/pi/Code/TTGO-HiGrow/mqtt-server/.venv/bin"
-ExecStart=python3 server.py
+ExecStart=startserver.sh
 
 [Install]
 WantedBy=multi-user.target
