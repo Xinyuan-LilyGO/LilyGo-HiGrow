@@ -173,6 +173,7 @@ class Database:
             except Exception as e:
                 # this might not be an error, because if the topic already exists it will
                 # not be reinserted since we require it to be unique
-                logging.error(
-                    "Exception when inserting row with topic {}: {}".format(topic, e))
+                logging.info(
+                    "Exception when inserting row with topic {} (not necessarily an "
+                    "error as this could just mean the topic already exists): {}".format(topic, e))
             return True
