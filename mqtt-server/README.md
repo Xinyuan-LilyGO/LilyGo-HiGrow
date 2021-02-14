@@ -1,7 +1,4 @@
-Please run `activate_venv.bat` before doing anything.
-
-## Useful links
-- `https://davidhamann.de/2018/02/11/integrate-bokeh-plots-in-flask-ajax/` how to update Bokeh graphs in real time
+Please run `activate_venv.bat` (on windows), or `activate_venv.sh` (on linux) before doing anything.
 
 # Broker setup
 
@@ -43,8 +40,9 @@ The server will now be addressable via `ttgo-server.local`
 - Reload config with `sudo systemctl daemon-reload`
 - Start the service with `sudo systemctl restart ttgo-server.service`
 
-Helpful links and notes
+## Helpful links and notes
 
+- `https://davidhamann.de/2018/02/11/integrate-bokeh-plots-in-flask-ajax/` how to update Bokeh graphs in real time
 - https://www.howtogeek.com/167190/how-and-why-to-assign-the-.local-domain-to-your-raspberry-pi/
 - https://www.howtogeek.com/167195/how-to-change-your-raspberry-pi-or-other-linux-devices-hostname/
 - https://www.shubhamdipt.com/blog/how-to-create-a-systemd-service-in-linux/
