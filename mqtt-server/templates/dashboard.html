@@ -1,0 +1,10 @@
+{% extends "layout.html" %}
+{% block body %}
+    {% for plot in plots %}
+        {% for part in plot %}
+            <div class="ttgo-plot">
+            {{part | safe}}
+            </div>
+        {% endfor %}
+    {% endfor %}
+{% endblock %}
