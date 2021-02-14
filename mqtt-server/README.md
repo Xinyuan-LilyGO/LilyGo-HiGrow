@@ -41,10 +41,12 @@ The server will now be addressable via `ttgo-server.local`
 - Ensure that you have a linux user `ttgo` (`sudo adduser ttgo`)
 - Edit `systemd/ttgo-server.service` to point to where you have checked out the repo, and copy it to `/etc/systemd/system`
 - Reload config with `sudo systemctl daemon-reload`
-- Start the service with `sudo systemctl ttgo-server.service`
+- Start the service with `sudo systemctl restart ttgo-server.service`
 
-Helpful links
+Helpful links and notes
 
 - https://www.howtogeek.com/167190/how-and-why-to-assign-the-.local-domain-to-your-raspberry-pi/
 - https://www.howtogeek.com/167195/how-to-change-your-raspberry-pi-or-other-linux-devices-hostname/
 - https://www.shubhamdipt.com/blog/how-to-create-a-systemd-service-in-linux/
+- on one occasion, the `server.py` wasn't responsive when running as a service until a few minutes after starting...
+- on one occasion, another laptop couldn't find `ttgo-server.local` until the wifi on that machine was disconnected/reconnected

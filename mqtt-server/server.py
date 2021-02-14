@@ -12,6 +12,7 @@ import argparse
 import os
 from datetime import datetime
 import logging
+import logging
 import database
 
 
@@ -21,6 +22,18 @@ DEFAULT_DB_PATH = os.path.join("databases", "database.db")
 MAX_DATA_LENGTH = 5000
 topic_data = {}
 database = database.Database()
+
+def setup_logging():
+    logger = logging.getLogger()
+    formatter = logging.Formatter('%(asctime)s  %(levelname)s: %(message)s')
+    logger.setLevel(logging.DEBUG)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(formatter)
+
+    logger.addHandler(stream_handler)
+    logger.info("Log Started")
 
 
 class CustomJSONEncoder(JSONEncoder):
@@ -78,6 +91,7 @@ def sensor_type_and_name_from_topic(topic: str):
 
 def new_topic_callback(topic):
     # if a new topic comes in
+    logging.info("New topic observed: {}".format(topic))
     sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
     if sensor_type_str not in topic_data:
         sensor_type = SensorType(sensor_type_str)
@@ -96,8 +110,8 @@ def new_data_callback(topic, data):
     # for now, all data is sent as formatted strings
     data_str = data.decode('utf-8')
     data_float = float(data_str)
+    logging.info("New data: {} on topic {}".format(data_float, topic))
     database.write_message(topic, data_float)
-    print("New data: {} on topic {}".format(data_float, topic))
 
     sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
     if sensor_type_str in topic_data:
@@ -107,7 +121,7 @@ def new_data_callback(topic, data):
             sensor_instance_data.x_data.append(datetime.now())
             sensor_instance_data.x_data.append(float(data_float))
         else:
-            print("No space to put the new data!")
+            logging.error("No space to put the new data!")
             pass
 
 
@@ -207,6 +221,8 @@ def make_plot(topic, data):
 
 if __name__ == "__main__":
 
+    setup_logging()
+
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--port", dest="flask_port",
                            help="The port that the web interface is served on", type=int, default=DEFAULT_FLASK_PORT)
@@ -261,8 +277,10 @@ if __name__ == "__main__":
         mqtt_host=args.mqtt_broker)
     relay.register_new_topic_callback(new_topic_callback)
     relay.register_new_data_callback(new_data_callback)
+    logging.info("Starting MQTT relay...")
     relay.initialise()
 
+    logging.info("Starting Flask server...")
     start_flask_app_blocking = True
     if start_flask_app_blocking:
         app.run(port=args.flask_port,
@@ -275,7 +293,7 @@ if __name__ == "__main__":
             'debug': False,
             'use_reloader': False,
             'host': '0.0.0.0'}).start()
-    print("Flask server started...")
+        logging.info("Flask server started...")
 
     # close things
     relay.uninitialise()
