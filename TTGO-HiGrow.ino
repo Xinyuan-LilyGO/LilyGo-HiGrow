@@ -197,11 +197,14 @@ bool serverBegin()
     ESPDash.addNumberCard("batt", "Battery/mV", 0);
 #endif
 
-
 #ifdef USE_18B20_TEMP_SENSOR
+#ifdef USE_CHINESE_WEB
     ESPDash.addTemperatureCard("temp3", "18B20温度/C", 0, 0);
-#endif
+#else
     ESPDash.addTemperatureCard("temp3", "18B20 Temperature/C", 0, 0);
+#endif
+#endif
+
     server.begin();
     MDNS.addService("http", "tcp", 80);
     return true;
