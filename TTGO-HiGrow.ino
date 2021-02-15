@@ -173,10 +173,12 @@ bool serverBegin()
     if (bme_found) {
 #ifdef USE_CHINESE_WEB
         ESPDash.addTemperatureCard("temp", "BME传感器温度/C", 0, 0);
+        ESPDash.addHumidityCard("hum", "BME传感器湿度/%", 0);
         ESPDash.addNumberCard("press", "BME传感器压力/hPa", 0);
         ESPDash.addNumberCard("alt", "BME传感器高度/m", 0);
 #else
         ESPDash.addTemperatureCard("temp", "BME Temperature/C", 0, 0);
+        ESPDash.addHumidityCard("hum", "BME Humidity/%", 0);
         ESPDash.addNumberCard("press", "BME Pressure/hPa", 0);
         ESPDash.addNumberCard("alt", "BME Altitude/m", 0);
 #endif
@@ -316,9 +318,11 @@ void loop()
 
             if (bme_found) {
                 float bme_temp = bmp.readTemperature();
+                float bme_hum = bmp.readHumidity();
                 float bme_pressure = (bmp.readPressure() / 100.0F);
                 float bme_altitude = bmp.readAltitude(1013.25);
                 ESPDash.updateTemperatureCard("temp", (int)bme_temp);
+                ESPDash.updateHumidityCard("hum", (int)bme_hum);
                 ESPDash.updateNumberCard("press", (int)bme_pressure);
                 ESPDash.updateNumberCard("alt", (int)bme_altitude);
             }
