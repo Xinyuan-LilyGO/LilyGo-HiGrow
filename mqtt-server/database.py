@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+from sqlite3.dbapi2 import IntegrityError
 import threading
 import struct
 
@@ -165,15 +166,20 @@ class Database:
                 return False
 
             try:
-                # insert the topic to keep a list of unique topics
-                sql = "INSERT INTO 'topics' ('name') VALUES (?)"
-                self.__cursor.execute(sql, (topic,))
-                self.__connection.commit()
+                try:
+                    # insert the topic to keep a list of unique topics
+                    sql = "INSERT INTO 'topics' ('name') VALUES (?)"
+                    self.__cursor.execute(sql, (topic,))
+                    self.__connection.commit()
 
+                except IntegrityError as e:
+                    if "UNIQUE constraint failed" in e.args[0]:
+                        # this is fine, because if the topic already exists in the topics table, the unique constraint will fail as intended
+                        pass
+                    else:
+                        raise
             except Exception as e:
-                # this might not be an error, because if the topic already exists it will
-                # not be reinserted since we require it to be unique
                 logging.info(
-                    "Exception when inserting row with topic {} (not necessarily an "
-                    "error as this could just mean the topic already exists): {}".format(topic, e))
+                    "Exception when inserting row with topic {}: {}".format(topic, e))
+                return True
             return True

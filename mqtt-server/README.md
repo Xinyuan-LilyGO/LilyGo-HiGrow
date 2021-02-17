@@ -40,6 +40,8 @@ The server will now be addressable via `ttgo-server.local`
 - Reload config with `sudo systemctl daemon-reload`
 - Start the service with `sudo systemctl restart ttgo-server.service`
 
+Check any output from the server using `sudo journalctl -u ttgo-server.service`
+
 ## Helpful links and notes
 
 - `https://davidhamann.de/2018/02/11/integrate-bokeh-plots-in-flask-ajax/` how to update Bokeh graphs in real time
