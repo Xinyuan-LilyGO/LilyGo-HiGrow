@@ -13,9 +13,14 @@ bool tryToGetGlobalTime();
 
 /// @brief return a structure that has a global time object and corresponding value of millis() at that time
 /// The pair of values can be used to convert a millis() result to a global time
-const TmAndMillis& globalTimeReference();
+const TmAndMillis &globalTimeReference();
 
 /// @brief convery a millis result to a tm object using a reference time point pair
 tm millisToTm(uint32_t millis, const TmAndMillis &referenceTime);
 
-uint32_t formatTimeAsNumber();
+/// @brief if possible, fill the [buffer] with a formatter date/time string
+/// returns false if no NTP reference time is available
+bool getLocalTimeString(char *buffer, uint32_t bufferSize);
+
+/// @brief has a global time reference been obtained?
+bool hasGlobalTimeReference();

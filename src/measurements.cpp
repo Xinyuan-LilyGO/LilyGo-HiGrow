@@ -1,5 +1,6 @@
 #include "measurements.h"
 #include "pins.h"
+#include "time_helpers.h"
 #include "driver/adc.h"
 
 uint32_t readSalt()
@@ -49,7 +50,7 @@ bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasure
     }
 
     // try to read these several times as sometimes they return NaN
-    constexpr uint8_t kMaxNumAttempts = 10;
+    constexpr uint8_t kMaxNumAttempts = 5;
     uint8_t numAttempts = 0;
     constexpr uint32_t kTimeBetweenAttempts_ms = 1000;
     while (true)
@@ -84,7 +85,6 @@ bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasure
     outMeasurements->salt = readSalt();
     outMeasurements->battery_mV = readBattery();
     adc_power_off();
-
-    outMeasurements->timestamp_ms = millis();
+    getLocalTimeString(outMeasurements->timestring, Measurements::kTimeStringLength);
     return true;
 }

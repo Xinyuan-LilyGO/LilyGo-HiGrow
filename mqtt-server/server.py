@@ -112,7 +112,12 @@ def new_topic_callback(topic):
 def new_data_callback(topic, data):
     # for now, all data is sent as formatted strings
     data_str = data.decode('utf-8')
-    data_float = float(data_str)
+    try:
+        data_float = float(data_str)
+    except Exception as e:
+        logging.error("Failed to convert data {} on topic {}: {}".format(data, topic, e))
+        return
+
     logging.info("New data: {} on topic {}".format(data_float, topic))
     database.write_message(topic, data_float)
 
