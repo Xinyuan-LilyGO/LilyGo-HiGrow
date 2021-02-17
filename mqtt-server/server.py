@@ -20,7 +20,7 @@ DEFAULT_MQTT_BROKER = "ttgo-server.local"
 DEFAULT_FLASK_PORT = 1234
 DEFAULT_DB_PATH = os.path.join("databases", "database.db")
 MAX_DATA_LENGTH = 5000
-topic_data = {}
+g_topic_data = {}
 database = database.Database()
 
 def setup_logging():
@@ -93,12 +93,12 @@ def new_topic_callback(topic):
     # if a new topic comes in
     logging.info("New topic observed: {}".format(topic))
     sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
-    if sensor_type_str not in topic_data:
+    if sensor_type_str not in g_topic_data:
         sensor_type = SensorType(sensor_type_str)
         sensor_type.add_series(sensor_name_str)
-        topic_data[sensor_type_str] = sensor_type
+        g_topic_data[sensor_type_str] = sensor_type
     else:
-        sensor_type: SensorType = topic_data[sensor_type_str]
+        sensor_type: SensorType = g_topic_data[sensor_type_str]
         if sensor_name_str not in sensor_type.series_data:
             sensor_type.add_series(sensor_name_str)
         else:
@@ -114,8 +114,8 @@ def new_data_callback(topic, data):
     database.write_message(topic, data_float)
 
     sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
-    if sensor_type_str in topic_data:
-        sensor_type: SensorType = topic_data[sensor_type_str]
+    if sensor_type_str in g_topic_data:
+        sensor_type: SensorType = g_topic_data[sensor_type_str]
         if sensor_name_str in sensor_type.series_data:
             sensor_instance_data: SensorInstanceData = sensor_type.series_data[sensor_name_str]
             sensor_instance_data.x_data.append(datetime.now())
@@ -137,8 +137,8 @@ def get_topics():
 @app.route('/data/<sensor_type>/<sensor_name>/', methods=['POST'])
 def get_data(sensor_name, sensor_type):
     global topic_data
-    if sensor_type in topic_data:
-        sensor_type_data: SensorType = topic_data[sensor_type]
+    if sensor_type in g_topic_data:
+        sensor_type_data: SensorType = g_topic_data[sensor_type]
         if sensor_name in sensor_type_data.series_data:
             sensor_instance_data: SensorInstanceData = sensor_type_data.series_data[sensor_name]
             return jsonify(x=sensor_instance_data.x_data, y=sensor_instance_data.y_data)
@@ -150,7 +150,7 @@ def get_data(sensor_name, sensor_type):
 def show_dashboard():
     global topic_data
     plots = []
-    for sensor_data in topic_data.values():
+    for sensor_data in g_topic_data.values():
         plots.append(make_ajax_plot(sensor_data))
     dash = render_template('dashboard.html', plots=plots)
     return dash
@@ -159,7 +159,7 @@ def show_dashboard():
 def make_ajax_plot(sensor_data: SensorType):
 
     colours = bokeh.palettes.Category10[10]
-    plot = figure(plot_height=300, sizing_mode='scale_width', title=topic)
+    plot = figure(plot_height=300, sizing_mode='scale_width')
     i = 0
     for sensor_instance_name, sensor_instance_data in sensor_data.series_data.items():
         update_path = 'data/{}/{}'.format(sensor_data.sensor_type,
@@ -253,13 +253,13 @@ if __name__ == "__main__":
         sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(
             topic)
 
-        if sensor_type_str in topic_data:
-            sensor_type: SensorType = topic_data[sensor_type_str]
+        if sensor_type_str in g_topic_data:
+            sensor_type: SensorType = g_topic_data[sensor_type_str]
             the_data = sensor_type.add_series(sensor_name_str)
         else:
             sensor_type = SensorType(sensor_type_str)
             the_data = sensor_type.add_series(sensor_name_str)
-            topic_data[sensor_type_str] = sensor_type
+            g_topic_data[sensor_type_str] = sensor_type
 
         x_series_data = the_data.x_data
         y_series_data = the_data.y_data
