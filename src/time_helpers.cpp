@@ -1,9 +1,13 @@
 #include "time_helpers.h"
 
-constexpr long kGmtOffset_s = 0;        // offset between GMT and your local time
-constexpr int kDaylightOffset_s = 3600; // offset for daylight saving
-constexpr char kNtpServer[] = "pool.ntp.org";
-TmAndMillis g_globalTimeReference;
+namespace
+{
+    constexpr long kGmtOffset_s = 0;        // offset between GMT and your local time
+    constexpr int kDaylightOffset_s = 3600; // offset for daylight saving
+    constexpr char kNtpServer[] = "pool.ntp.org";
+    TmAndMillis g_globalTimeReference;
+    bool g_hasGlobalTimeReference = false;
+}
 
 bool tryToGetGlobalTime()
 {
@@ -11,14 +15,32 @@ bool tryToGetGlobalTime()
     if (!getLocalTime(&g_globalTimeReference.time))
     {
         Serial.println("Failed to get local time");
+        g_hasGlobalTimeReference = false;
         return false;
     }
 
     g_globalTimeReference.time_ms = millis();
+    g_hasGlobalTimeReference = true;
     return true;
 }
 
-const TmAndMillis& globalTimeReference()
+bool getLocalTimeString(char *buffer, uint32_t bufferSize)
+{
+    tm time;
+    if (!getLocalTime(&time))
+    {
+        return false;
+    }
+    strftime(buffer, bufferSize, "%Y-%m-%d %H:%M:%S", &time);
+    return true;
+}
+
+bool hasGlobalTimeReference()
+{
+    return g_hasGlobalTimeReference;
+}
+
+const TmAndMillis &globalTimeReference()
 {
     return g_globalTimeReference;
 }

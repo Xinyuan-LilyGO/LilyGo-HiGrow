@@ -26,19 +26,12 @@ constexpr uint16_t kMQTTBrokerPort = 1883;
 char g_mqttName[1024] = "sensor0";
 char g_mqttTopicRoot[1024] = "sensor0";
 
-// working data stored in the RTC memory
-RTC_DATA_ATTR struct WorkingData
-{
-    // storage space for measurements
-    static constexpr uint8_t kNumMeasurementsToTakeBeforeSending = 1;
-    Measurements measurements[kNumMeasurementsToTakeBeforeSending];
-    uint8_t numMeasurementsRecorded = 0;
-
-    static constexpr uint32_t kTimeBetweenMeasurements_ms = 60000;
-    //TmAndMillis globalTimeReference;
-    bool hasGlobalTimeReference = false;
-
-} g_workingData;
+// working data stored in RTC memory
+constexpr uint32_t kTimeBetweenMeasurements_ms = 2 * 60 * 1000;
+constexpr uint8_t kNumMeasurementsToTakeBeforeSending = 5;
+RTC_DATA_ATTR Measurements g_measurements[kNumMeasurementsToTakeBeforeSending];
+RTC_DATA_ATTR uint8_t g_numMeasurementsRecorded = 0;
+RTC_DATA_ATTR bool g_hasGlobalTimeReference = false;
 
 #define PRINT(x)         \
     if (Serial)          \
@@ -130,12 +123,12 @@ void enterDeepSleep()
 {
     //inspired by https://www.reddit.com/r/esp32/comments/exgi32/esp32_ultralow_power_mode/
     PRINT("Powering down for ");
-    PRINT(WorkingData::kTimeBetweenMeasurements_ms / 1000);
+    PRINT(kTimeBetweenMeasurements_ms / 1000);
     PRINTLN(" seconds...");
     digitalWrite(POWER_CTRL, LOW);
     WiFi.disconnect(true); // Keeps WiFi APs happy
     WiFi.mode(WIFI_OFF);   // Switch WiFi off
-    esp_sleep_enable_timer_wakeup(WorkingData::kTimeBetweenMeasurements_ms * 1000);
+    esp_sleep_enable_timer_wakeup(kTimeBetweenMeasurements_ms * 1000);
     esp_deep_sleep_start();
 }
 
@@ -168,7 +161,7 @@ void setup()
     PRINTLN(" MHz");
 
     // if we need to, take a measurment
-    if (g_workingData.numMeasurementsRecorded < WorkingData::kNumMeasurementsToTakeBeforeSending)
+    if (g_numMeasurementsRecorded < kNumMeasurementsToTakeBeforeSending)
     {
         PRINTLN("Powering on to take measurement");
         digitalWrite(POWER_CTRL, HIGH);
@@ -183,7 +176,7 @@ void setup()
         }
 
         // take measurements
-        Measurements *nextMeasurement = &g_workingData.measurements[g_workingData.numMeasurementsRecorded];
+        Measurements *nextMeasurement = &g_measurements[g_numMeasurementsRecorded];
         if (takeMeasurements(&lightMeter, &dht12, nextMeasurement))
         {
 #ifdef TTGO_DEBUG_PRINT
@@ -193,19 +186,19 @@ void setup()
             PRINTLN(nextMeasurement->soil);
             PRINTLN(nextMeasurement->temperature_C);
 #endif
-            ++g_workingData.numMeasurementsRecorded;
+            ++g_numMeasurementsRecorded;
         }
 
         digitalWrite(POWER_CTRL, LOW);
     }
 
     PRINT("Taken measurements ");
-    PRINT(g_workingData.numMeasurementsRecorded);
+    PRINT(g_numMeasurementsRecorded);
     PRINT("/");
-    PRINTLN(WorkingData::kNumMeasurementsToTakeBeforeSending);
+    PRINTLN(kNumMeasurementsToTakeBeforeSending);
 
     // if we still have more measurements to take, then go back to sleep
-    if (g_workingData.numMeasurementsRecorded < WorkingData::kNumMeasurementsToTakeBeforeSending)
+    if (g_numMeasurementsRecorded < kNumMeasurementsToTakeBeforeSending)
     {
         enterDeepSleep();
     }
@@ -240,15 +233,21 @@ void setup()
         PRINT("IP Address: ");
         PRINTLN(WiFi.localIP());
 
-        // // get global time if necessary
-        // if (!g_workingData.hasGlobalTimeReference)
-        // {
-        //     if (tryToGetGlobalTime())
-        //     {
-        //         g_workingData.globalTimeReference = globalTimeReference();
-        //         g_workingData.hasGlobalTimeReference = true;
-        //     }
-        // }
+        // get global time if necessary
+        if (!g_hasGlobalTimeReference)
+        {
+            if (tryToGetGlobalTime())
+            {
+                char timeString[100];
+                getLocalTimeString(timeString, 100);
+                PRINT("Got local time: ");
+                PRINTLN(timeString);
+            }
+            else
+            {
+                PRINTLN("Failed to get local time.");
+            }
+        }
 
         // now send them all
         mqttClient.setServer(kMQTTBroker, kMQTTBrokerPort);
@@ -270,9 +269,9 @@ void setup()
         }
 
         // we're connected, now send!
-        for (size_t i = 0; i < g_workingData.numMeasurementsRecorded; ++i)
+        for (size_t i = 0; i < g_numMeasurementsRecorded; ++i)
         {
-            const Measurements &measurements = g_workingData.measurements[i];
+            const Measurements &measurements = g_measurements[i];
             // publishMessage<float>("battery_mV", &measurements.battery_mV);
             // publishMessage<float>("humidity", &measurements.humidity);
             // publishMessage<float>("lux", &measurements.lux);
@@ -287,11 +286,11 @@ void setup()
             publishMessage<float>("salt", "%.3f", measurements.salt);
             publishMessage<float>("soil", "%.3f", measurements.soil);
             publishMessage<float>("temperature_C", "%.3f", measurements.temperature_C);
-            publishMessage<float>("timestamp_ms", "%i", measurements.timestamp_ms);
+            publishMessage<const char*>("timestamp", "%s", measurements.timestring);
         }
 
         // mark all as sent so we'll measure a new batch
-        g_workingData.numMeasurementsRecorded = 0;
+        g_numMeasurementsRecorded = 0;
 
         mqttClient.disconnect();
     }

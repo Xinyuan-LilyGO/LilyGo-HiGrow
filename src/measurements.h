@@ -11,7 +11,8 @@ struct Measurements
     float soil = 0.f;
     float salt = 0.f;
     float battery_mV = 0.f;
-    uint32_t timestamp_ms = 0;
+    static constexpr uint8_t kTimeStringLength = 20;
+    char timestring[kTimeStringLength];
 };
 
 bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasurements);
