@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package ttgo.proto;
+
+message Measurements
+{
+    uint32 error_code = 1;
+    float lux = 2;
+    float humidity = 3;
+    float temperature_C = 4;
+    float soil = 5;
+    float salt = 6;
+    float battery_mV = 7;
+    uint32 timestamp = 8;
+    uint32 fw_version_major = 9;
+    uint32 fw_version_minor = 10;
+    uint32 fw_version_patch = 11;
+
+    // debugging things
+    uint32 num_dht_failed_reads = 12;
+}

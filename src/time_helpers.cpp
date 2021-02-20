@@ -5,22 +5,22 @@ namespace
     constexpr long kGmtOffset_s = 0;        // offset between GMT and your local time
     constexpr int kDaylightOffset_s = 3600; // offset for daylight saving
     constexpr char kNtpServer[] = "pool.ntp.org";
-    TmAndMillis g_globalTimeReference;
-    bool g_hasGlobalTimeReference = false;
+    TmAndMillis g_absoluteTimeReference;
+    bool g_hasAbsolutelTimeReference = false;
 }
 
-bool tryToGetGlobalTime()
+bool tryToGetAbsoluteTime()
 {
     configTime(kGmtOffset_s, kDaylightOffset_s, kNtpServer);
-    if (!getLocalTime(&g_globalTimeReference.time))
+    if (!getLocalTime(&g_absoluteTimeReference.time))
     {
         Serial.println("Failed to get local time");
-        g_hasGlobalTimeReference = false;
+        g_hasAbsolutelTimeReference = false;
         return false;
     }
 
-    g_globalTimeReference.time_ms = millis();
-    g_hasGlobalTimeReference = true;
+    g_absoluteTimeReference.time_ms = millis();
+    g_hasAbsolutelTimeReference = true;
     return true;
 }
 
@@ -35,14 +35,14 @@ bool getLocalTimeString(char *buffer, uint32_t bufferSize)
     return true;
 }
 
-bool hasGlobalTimeReference()
+bool hasAbsoluteTimeReference()
 {
-    return g_hasGlobalTimeReference;
+    return g_hasAbsolutelTimeReference;
 }
 
-const TmAndMillis &globalTimeReference()
+const TmAndMillis &absoluteTimeReference()
 {
-    return g_globalTimeReference;
+    return g_absoluteTimeReference;
 }
 
 tm millisToTm(uint32_t millis, const TmAndMillis &referenceTime)
@@ -71,4 +71,11 @@ tm millisToTm(uint32_t millis, const TmAndMillis &referenceTime)
     mins -= extraHours * 60;
 
     return timeG;
+}
+
+uint32_t millisToEpoch(uint32_t millis, const TmAndMillis &referenceTime)
+{
+    tm time = millisToTm(millis, referenceTime);
+    const time_t epochTime = mktime(&time);
+    return static_cast<uint32_t>(epochTime);
 }

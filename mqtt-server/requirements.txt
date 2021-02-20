@@ -3,3 +3,6 @@ pytest==6.2.1
 autopep8==1.5
 Flask==1.1.2
 bokeh==2.2.3
+google
+grpcio-tools==1.34.0
+protobuf==3.14.0
