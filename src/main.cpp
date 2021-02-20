@@ -32,7 +32,8 @@ constexpr uint32_t kTimeBetweenMeasurements_ms = 2 * 60 * 1000;
 constexpr uint8_t kNumMeasurementsToTakeBeforeSending = 5;
 RTC_DATA_ATTR ttgo_proto_Measurements g_measurements[kNumMeasurementsToTakeBeforeSending];
 RTC_DATA_ATTR uint8_t g_numMeasurementsRecorded = 0;
-RTC_DATA_ATTR bool g_hasGlobalTimeReference = false;
+constexpr uint32_t kTimeBetweenRTCUpdates_ms = 1 * 60 * 60 * 1000;          // how often is the real time clock updated using NTC server
+RTC_DATA_ATTR uint32_t g_timeSinceRTCUpdate_ms = kTimeBetweenRTCUpdates_ms; // set to time limit to update once at the start
 
 #define PRINT(x)         \
     if (Serial)          \
@@ -147,6 +148,41 @@ void enterDeepSleep()
     esp_deep_sleep_start();
 }
 
+bool connectToWifi()
+{
+    char ssid[1024];
+    char password[1024];
+    initNVS();
+    const bool hasDetails = tryReadSSIDPW(ssid, password);
+    if (hasDetails)
+    {
+        PRINT("MAC Address: ");
+        PRINTLN(WiFi.macAddress());
+
+        PRINT("Connecting to ");
+        PRINT(ssid);
+        WiFi.begin(ssid, password);
+        while (WiFi.status() != WL_CONNECTED)
+        {
+            delay(500);
+            Serial.print(".");
+        }
+        PRINTLN("");
+    }
+    if (WiFi.waitForConnectResult() != WL_CONNECTED)
+    {
+        PRINTLN("WiFi connect fail!,please restart retry,or long press BOOT button enter smart config mode\n");
+        return false;
+    }
+    else if (WiFi.status() == WL_CONNECTED)
+    {
+        PRINT("IP Address: ");
+        PRINTLN(WiFi.localIP());
+        return true;
+    }
+    return false;
+}
+
 void setup()
 {
     // setup GPIOs
@@ -183,6 +219,25 @@ void setup()
     PRINT("CPU frequency set to ");
     PRINT(getCpuFrequencyMhz());
     PRINTLN(" MHz");
+
+    // update rtc if necessesary
+    bool wifiConnected = false;
+    if (g_timeSinceRTCUpdate_ms >= kTimeBetweenRTCUpdates_ms)
+    {
+        wifiConnected = connectToWifi();
+        if (wifiConnected && tryToUpdateAbsoluteTime())
+        {
+            g_timeSinceRTCUpdate_ms = 0;
+            char timeString[100];
+            getLocalTimeString(timeString, 100);
+            PRINT("Updated RTC: ");
+            PRINTLN(timeString);
+        }
+        else
+        {
+            PRINTLN("Failed to update RTC.");
+        }
+    }
 
     // if we need to, take a measurment
     if (g_numMeasurementsRecorded < kNumMeasurementsToTakeBeforeSending)
@@ -235,47 +290,29 @@ void setup()
 
     // if we got this far, it's time to transmit data over wifi
 
-    char ssid[1024];
-    char password[1024];
-    initNVS();
-    const bool hasDetails = tryReadSSIDPW(ssid, password);
-    if (hasDetails)
+    // if we're not already connected, connect
+    if (!wifiConnected)
     {
-        PRINT("MAC Address: ");
-        PRINTLN(WiFi.macAddress());
-
-        PRINT("Connecting to ");
-        PRINT(ssid);
-        WiFi.begin(ssid, password);
-        while (WiFi.status() != WL_CONNECTED)
-        {
-            delay(500);
-            Serial.print(".");
-        }
-        PRINTLN("");
+        wifiConnected = connectToWifi();
     }
-    if (WiFi.waitForConnectResult() != WL_CONNECTED)
-    {
-        PRINTLN("WiFi connect fail!,please restart retry,or long press BOOT button enter smart config mode\n");
-    }
-    else if (WiFi.status() == WL_CONNECTED)
-    {
-        PRINT("IP Address: ");
-        PRINTLN(WiFi.localIP());
 
+    // if we are connected, try and send data
+    if (wifiConnected)
+    {
         // get absolute time if necessary
-        if (!hasAbsoluteTimeReference())
+        if (g_timeSinceRTCUpdate_ms >= kTimeBetweenRTCUpdates_ms)
         {
-            if (tryToGetAbsoluteTime())
+            if (tryToUpdateAbsoluteTime())
             {
+                g_timeSinceRTCUpdate_ms = 0;
                 char timeString[100];
                 getLocalTimeString(timeString, 100);
-                PRINT("Got local time: ");
+                PRINT("Updated RTC: ");
                 PRINTLN(timeString);
             }
             else
             {
-                PRINTLN("Failed to get absolute time.");
+                PRINTLN("Failed to update RTC.");
             }
         }
 
@@ -308,16 +345,6 @@ void setup()
 
             ttgo_proto_Measurements &measurements = g_measurements[i];
 
-            // set the time correctly, if we can
-            if (hasAbsoluteTimeReference())
-            {
-                measurements.timestamp = millisToEpoch(measurements.timestamp, absoluteTimeReference());
-            }
-            else
-            {
-                PRINTLN("No absolute time available");
-            }
-
             // fill in version info
             measurements.fw_version_major = FW_VERSION_MAJOR;
             measurements.fw_version_minor = FW_VERSION_MINOR;
@@ -348,6 +375,7 @@ void setup()
     }
 
     // finally, go back to sleep
+    g_timeSinceRTCUpdate_ms += (kTimeBetweenMeasurements_ms * kNumMeasurementsToTakeBeforeSending);
     enterDeepSleep();
 }
 

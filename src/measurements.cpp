@@ -88,7 +88,7 @@ bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, ttgo_proto_Measurements 
     outMeasurements->battery_mV = readBattery();
     adc_power_off();
 
-    outMeasurements->timestamp = millis();
+    outMeasurements->timestamp = getEpochTime();
 
     return true;
 }
