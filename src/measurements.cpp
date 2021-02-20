@@ -39,7 +39,7 @@ float readBattery()
     return battery_voltage;
 }
 
-bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasurements)
+bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, ttgo_proto_Measurements *outMeasurements)
 {
     if (lightMeter == nullptr ||   //
         dht12 == nullptr ||        //
@@ -49,9 +49,11 @@ bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasure
         return false;
     }
 
+    *outMeasurements = ttgo_proto_Measurements_init_default;
+
     // try to read these several times as sometimes they return NaN
     constexpr uint8_t kMaxNumAttempts = 5;
-    uint8_t numAttempts = 0;
+    outMeasurements->num_dht_failed_reads = 0;
     constexpr uint32_t kTimeBetweenAttempts_ms = 1000;
     while (true)
     {
@@ -63,8 +65,8 @@ bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasure
             break;
         }
 
-        ++numAttempts;
-        if (numAttempts >= kMaxNumAttempts)
+        ++outMeasurements->num_dht_failed_reads;
+        if (outMeasurements->num_dht_failed_reads >= kMaxNumAttempts)
         {
             Serial.println("Measurements failed.");
             return false;
@@ -85,6 +87,29 @@ bool takeMeasurements(BH1750 *lightMeter, DHT12 *dht12, Measurements *outMeasure
     outMeasurements->salt = readSalt();
     outMeasurements->battery_mV = readBattery();
     adc_power_off();
-    getLocalTimeString(outMeasurements->timestring, Measurements::kTimeStringLength);
+
+    outMeasurements->timestamp = millis();
+
     return true;
+}
+
+void printMeasurements(Print &printer, const ttgo_proto_Measurements &measurements)
+{
+    char buffer[100];
+    sprintf(buffer, "battery_mV: %.3f", measurements.battery_mV);
+    printer.println(buffer);
+    sprintf(buffer, "humidity: %.3f", measurements.lux);
+    printer.println(buffer);
+    sprintf(buffer, "lux: %.3f", measurements.lux);
+    printer.println(buffer);
+    sprintf(buffer, "salt: %.3f", measurements.salt);
+    printer.println(buffer);
+    sprintf(buffer, "soil: %.3f", measurements.soil);
+    printer.println(buffer);
+    sprintf(buffer, "temperature_C: %.3f", measurements.temperature_C);
+    printer.println(buffer);
+    sprintf(buffer, "timestamp: %zu", measurements.timestamp);
+    printer.println(buffer);
+    sprintf(buffer, "num_dht_failed_reads: %zu", measurements.num_dht_failed_reads);
+    printer.println(buffer);
 }

@@ -2,6 +2,7 @@ import sqlite3
 import logging
 from sqlite3.dbapi2 import IntegrityError
 import threading
+from datetime import datetime
 import struct
 
 
@@ -48,7 +49,8 @@ class Database:
                 "CREATE TABLE IF NOT EXISTS events("
                 "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,"
                 "topic TEXT NOT NULL,"
-                "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,"
+                "timestamp DATETIME NOT NULL,"
+                "recieve_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,"
                 "data BLOB,"
                 "format_string STRING"
                 ");")
@@ -116,7 +118,7 @@ class Database:
                 if data is None or len(data) == 0:
                     return []
 
-                # first column holds the datetime, second is the data (bytes), third is the format string
+                # first column holds the datetime, second is the data (bytes), third is the format string, fourth is the timestamp
                 data_decoded = []
                 for d in data:
                     timestamp = d[0]
@@ -133,7 +135,7 @@ class Database:
                 "Exception when trying to get topics list: {}".format(e))
             return []
 
-    def write_message(self, topic, data):
+    def write_message(self, topic: str, data, timestamp: datetime):
         if isinstance(data, bytes) or isinstance(data, bytearray):
             data_bytes = data
             format_string = Database.__BYTES_DB_FORMAT_STRING
@@ -148,16 +150,17 @@ class Database:
             format_string = Database.__UTF8_DB_FORMAT_STRING
         else:
             raise Exception("data must be bytes, bytearray, float or int.")
-        return self.__write_message(topic, data_bytes, format_string)
+        return self.__write_message(topic, data_bytes, format_string, timestamp)
 
-    def __write_message(self, topic, data: bytes, format_string: str):
+    def __write_message(self, topic, data: bytes, format_string: str, timestamp: datetime):
         with self.__db_lock:
             try:
                 # insert the message
-                sql = "INSERT INTO `events` (`topic`, `data`, `format_string`) " \
-                    "VALUES (?, ?, ?);"
+                timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                sql = "INSERT INTO `events` (`topic`, `data`, `format_string`, `timestamp`) " \
+                    "VALUES (?, ?, ?, ?);"
                 self.__cursor.execute(
-                    sql, (topic, sqlite3.Binary(data), format_string,))
+                    sql, (topic, sqlite3.Binary(data), format_string, timestamp_str,))
                 self.__connection.commit()
 
             except Exception as e:

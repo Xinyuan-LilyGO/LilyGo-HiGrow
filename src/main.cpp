@@ -9,6 +9,7 @@
 #include "esp_wifi.h"
 #include "esp_system.h"
 #include "measurements.h"
+#include "pb_encode.h"
 #include "nvs_utils.h"
 #include "PubSubClient.h"
 #include "time_helpers.h"
@@ -29,7 +30,7 @@ char g_mqttTopicRoot[1024] = "sensor0";
 // working data stored in RTC memory
 constexpr uint32_t kTimeBetweenMeasurements_ms = 2 * 60 * 1000;
 constexpr uint8_t kNumMeasurementsToTakeBeforeSending = 5;
-RTC_DATA_ATTR Measurements g_measurements[kNumMeasurementsToTakeBeforeSending];
+RTC_DATA_ATTR ttgo_proto_Measurements g_measurements[kNumMeasurementsToTakeBeforeSending];
 RTC_DATA_ATTR uint8_t g_numMeasurementsRecorded = 0;
 RTC_DATA_ATTR bool g_hasGlobalTimeReference = false;
 
@@ -64,7 +65,6 @@ bool tryInitI2CAndDevices()
         PRINTLN(F("Error initialising BH1750"));
     }
 
-    delay(1000); //  delay to make things reliable
     PRINTLN("tryInitI2CAndDevices: done");
     return true;
 }
@@ -92,6 +92,21 @@ void smartConfigStart()
     {
         PRINTLN("Failed to save SSID and Password");
     }
+}
+
+template <typename T>
+void publishMessage(const char *subTopic, T value)
+{
+    static char topicBuffer[100];
+    sprintf(topicBuffer, "%s/%s", g_mqttTopicRoot, subTopic);
+    mqttClient.publish(topicBuffer, reinterpret_cast<uint8_t *>(&value), sizeof(T));
+}
+
+void publishMessage(const char *subTopic, uint8_t *data, uint32_t numBytes)
+{
+    static char topicBuffer[100];
+    sprintf(topicBuffer, "%s/%s", g_mqttTopicRoot, subTopic);
+    mqttClient.publish(topicBuffer, data, numBytes);
 }
 
 template <typename T>
@@ -154,6 +169,15 @@ void setup()
         smartConfigStart();
     }
 
+    PRINTLN("Firmware version ");
+    PRINT(FW_VERSION_MAJOR);
+    PRINT(".");
+    PRINT(FW_VERSION_MINOR);
+    PRINT(".");
+    PRINT(FW_VERSION_PATCH);
+    PRINT(" Build time ");
+    PRINTLN(BUILD_TIME);
+
     // set CPU to low frequency
     setCpuFrequencyMhz(80);
     PRINT("CPU frequency set to ");
@@ -175,8 +199,11 @@ void setup()
             connected = tryInitI2CAndDevices();
         }
 
+        // DHT12 takes a long time, delay till it's ready
+        delay(2500);
+
         // take measurements
-        Measurements *nextMeasurement = &g_measurements[g_numMeasurementsRecorded];
+        ttgo_proto_Measurements *nextMeasurement = &g_measurements[g_numMeasurementsRecorded];
         if (takeMeasurements(&lightMeter, &dht12, nextMeasurement))
         {
 #ifdef TTGO_DEBUG_PRINT
@@ -188,7 +215,10 @@ void setup()
 #endif
             ++g_numMeasurementsRecorded;
         }
-
+        else
+        {
+            PRINTLN("Failed measurement");
+        }
         digitalWrite(POWER_CTRL, LOW);
     }
 
@@ -233,10 +263,10 @@ void setup()
         PRINT("IP Address: ");
         PRINTLN(WiFi.localIP());
 
-        // get global time if necessary
-        if (!g_hasGlobalTimeReference)
+        // get absolute time if necessary
+        if (!hasAbsoluteTimeReference())
         {
-            if (tryToGetGlobalTime())
+            if (tryToGetAbsoluteTime())
             {
                 char timeString[100];
                 getLocalTimeString(timeString, 100);
@@ -245,7 +275,7 @@ void setup()
             }
             else
             {
-                PRINTLN("Failed to get local time.");
+                PRINTLN("Failed to get absolute time.");
             }
         }
 
@@ -271,22 +301,44 @@ void setup()
         // we're connected, now send!
         for (size_t i = 0; i < g_numMeasurementsRecorded; ++i)
         {
-            const Measurements &measurements = g_measurements[i];
-            // publishMessage<float>("battery_mV", &measurements.battery_mV);
-            // publishMessage<float>("humidity", &measurements.humidity);
-            // publishMessage<float>("lux", &measurements.lux);
-            // publishMessage<float>("salt", &measurements.salt);
-            // publishMessage<float>("soil", &measurements.soil);
-            // publishMessage<float>("temperature_C", &measurements.temperature_C);
-            // publishMessage<uint32_t>("timestamp_ms", &measurements.timestamp_ms);
+            PRINT("Sending measurement ");
+            PRINT(i + 1);
+            PRINT("/");
+            PRINTLN(g_numMeasurementsRecorded);
 
-            publishMessage<float>("battery_mV", "%.3f", measurements.battery_mV);
-            publishMessage<float>("humidity", "%.3f", measurements.humidity);
-            publishMessage<float>("lux", "%.3f", measurements.lux);
-            publishMessage<float>("salt", "%.3f", measurements.salt);
-            publishMessage<float>("soil", "%.3f", measurements.soil);
-            publishMessage<float>("temperature_C", "%.3f", measurements.temperature_C);
-            publishMessage<const char*>("timestamp", "%s", measurements.timestring);
+            ttgo_proto_Measurements &measurements = g_measurements[i];
+
+            // set the time correctly, if we can
+            if (hasAbsoluteTimeReference())
+            {
+                measurements.timestamp = millisToEpoch(measurements.timestamp, absoluteTimeReference());
+            }
+            else
+            {
+                PRINTLN("No absolute time available");
+            }
+
+            // fill in version info
+            measurements.fw_version_major = FW_VERSION_MAJOR;
+            measurements.fw_version_minor = FW_VERSION_MINOR;
+            measurements.fw_version_patch = FW_VERSION_PATCH;
+
+            // encode protobuf
+            uint8_t protoBuffer[ttgo_proto_Measurements_size];
+            pb_ostream_t stream = pb_ostream_from_buffer(protoBuffer, sizeof(protoBuffer));
+            const bool encodeSuccess = pb_encode(&stream, ttgo_proto_Measurements_fields, &measurements);
+            if (!encodeSuccess)
+            {
+                PRINTLN("Failed to encode.  Skipping.");
+                continue;
+            }
+
+            // send
+            const size_t message_length = stream.bytes_written;
+            publishMessage("measurement", protoBuffer, message_length);
+
+            // print out for debug
+            printMeasurements(Serial, measurements);
         }
 
         // mark all as sent so we'll measure a new batch

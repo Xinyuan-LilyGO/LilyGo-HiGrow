@@ -7,6 +7,8 @@ from bokeh.models.formatters import DatetimeTickFormatter
 from bokeh.plotting import figure
 from bokeh.embed import components
 from mqtt_relay import MQTTRelay
+import pyprotos.measurements_pb2 as measurement_pb2
+from pyprotos.measurements_pb2 import Measurements
 import threading
 import argparse
 from threading import Lock
@@ -90,48 +92,71 @@ def sensor_type_and_name_from_topic(topic: str):
     sensor_type_str = topic_parts[-1]
     return sensor_type_str, sensor_name_str
 
-
 def new_topic_callback(topic):
     # if a new topic comes in
     logging.info("New topic observed: {}".format(topic))
-    sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
-    with g_topic_data_lock:
-        if sensor_type_str not in g_topic_data:
-            sensor_type = SensorType(sensor_type_str)
-            sensor_type.add_series(sensor_name_str)
-            g_topic_data[sensor_type_str] = sensor_type
-        else:
-            sensor_type: SensorType = g_topic_data[sensor_type_str]
-            if sensor_name_str not in sensor_type.series_data:
-                sensor_type.add_series(sensor_name_str)
-            else:
-                # this topic does exist, this was called erroneously
-                pass
+    # sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
+    # with g_topic_data_lock:
+    #     if sensor_type_str not in g_topic_data:
+    #         sensor_type = SensorType(sensor_type_str)
+    #         sensor_type.add_series(sensor_name_str)
+    #         g_topic_data[sensor_type_str] = sensor_type
+    #     else:
+    #         sensor_type: SensorType = g_topic_data[sensor_type_str]
+    #         if sensor_name_str not in sensor_type.series_data:
+    #             sensor_type.add_series(sensor_name_str)
+    #         else:
+    #             # this topic does exist, this was called erroneously
+    #             pass
 
 
-def new_data_callback(topic, data):
-    # for now, all data is sent as formatted strings
-    data_str = data.decode('utf-8')
+def parse_proto_to_dict(data : bytearray) -> Measurements:
     try:
-        data_float = float(data_str)
+        measurement = Measurements()
+        measurement.ParseFromString(data)
+        return measurement
     except Exception as e:
-        logging.error("Failed to convert data {} on topic {}: {}".format(data, topic, e))
-        return
+        logging.error("Error parsing measurement protobuf: {}".format(e))
+        return None
 
-    logging.info("New data: {} on topic {}".format(data_float, topic))
-    database.write_message(topic, data_float)
 
-    sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
+def new_data_callback(topic, data : bytearray):
+
+    measurements = parse_proto_to_dict(data)
+    measurements_log_str = "{}".format(measurements)
+    measurements_log_str = measurements_log_str.replace('\n', ', ')
+    logging.info("New data on topic {} : {}".format(topic, measurements_log_str))
+
+    # write each part into the database separately
+    timestamp_epoch = measurements.timestamp
+    timestamp = datetime.fromtimestamp(timestamp_epoch)
+    measurements_dict = {
+        "lux": measurements.lux,
+        "humidity": measurements.humidity,
+        "temperature_C": measurements.temperature_C,
+        "soil": measurements.soil,
+        "salt": measurements.salt,
+        "battery_mV": measurements.battery_mV
+    }
+
+    # write into database and update local storage
     with g_topic_data_lock:
-        if sensor_type_str in g_topic_data:
-            sensor_type: SensorType = g_topic_data[sensor_type_str]
-            if sensor_name_str in sensor_type.series_data:
-                sensor_instance_data: SensorInstanceData = sensor_type.series_data[sensor_name_str]
-                sensor_instance_data.x_data.append(datetime.now())
-                sensor_instance_data.y_data.append(float(data_float))
-            else:
-                logging.error("No space to put the new data!")
-                pass
+
+        for sensor_type_str, value in measurements_dict.items():
+            # put in database
+            topic_str = topic + "/" + sensor_type_str
+            database.write_message(topic=topic_str, data=value, timestamp=timestamp)
+
+            # update local storage
+            if sensor_type_str in g_topic_data:
+                sensor_type: SensorType = g_topic_data[sensor_type_str]
+                if sensor_name_str in sensor_type.series_data:
+                    sensor_instance_data: SensorInstanceData = sensor_type.series_data[sensor_name_str]
+                    sensor_instance_data.x_data.append(timestamp)
+                    sensor_instance_data.y_data.append(value)
+                else:
+                    logging.error("No space to put the new data!")
+                    pass
 
 
 app = Flask(__name__)
