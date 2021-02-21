@@ -27,6 +27,7 @@ g_topic_data = {}
 g_topic_data_lock = Lock()
 database = database.Database()
 
+
 def setup_logging():
     logger = logging.getLogger()
     formatter = logging.Formatter('%(asctime)s  %(levelname)s: %(message)s')
@@ -92,25 +93,13 @@ def sensor_type_and_name_from_topic(topic: str):
     sensor_type_str = topic_parts[-1]
     return sensor_type_str, sensor_name_str
 
+
 def new_topic_callback(topic):
     # if a new topic comes in
     logging.info("New topic observed: {}".format(topic))
-    # sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
-    # with g_topic_data_lock:
-    #     if sensor_type_str not in g_topic_data:
-    #         sensor_type = SensorType(sensor_type_str)
-    #         sensor_type.add_series(sensor_name_str)
-    #         g_topic_data[sensor_type_str] = sensor_type
-    #     else:
-    #         sensor_type: SensorType = g_topic_data[sensor_type_str]
-    #         if sensor_name_str not in sensor_type.series_data:
-    #             sensor_type.add_series(sensor_name_str)
-    #         else:
-    #             # this topic does exist, this was called erroneously
-    #             pass
 
 
-def parse_proto_to_dict(data : bytearray) -> Measurements:
+def parse_proto_to_dict(data: bytearray) -> Measurements:
     try:
         measurement = Measurements()
         measurement.ParseFromString(data)
@@ -120,12 +109,13 @@ def parse_proto_to_dict(data : bytearray) -> Measurements:
         return None
 
 
-def new_data_callback(topic, data : bytearray):
+def new_data_callback(topic, data: bytearray):
 
     measurements = parse_proto_to_dict(data)
     measurements_log_str = "{}".format(measurements)
     measurements_log_str = measurements_log_str.replace('\n', ', ')
-    logging.info("New data on topic {} : {}".format(topic, measurements_log_str))
+    logging.info("New data on topic {} : {}".format(
+        topic, measurements_log_str))
 
     # write each part into the database separately
     timestamp_epoch = measurements.timestamp
@@ -140,23 +130,33 @@ def new_data_callback(topic, data : bytearray):
     }
 
     # write into database and update local storage
+    sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
     with g_topic_data_lock:
 
         for sensor_type_str, value in measurements_dict.items():
             # put in database
             topic_str = topic + "/" + sensor_type_str
-            database.write_message(topic=topic_str, data=value, timestamp=timestamp)
+            database.write_message(
+                topic=topic_str, data=value, timestamp=timestamp)
 
             # update local storage
+            # get or create space for this type of sensor data if there is none
             if sensor_type_str in g_topic_data:
                 sensor_type: SensorType = g_topic_data[sensor_type_str]
-                if sensor_name_str in sensor_type.series_data:
-                    sensor_instance_data: SensorInstanceData = sensor_type.series_data[sensor_name_str]
-                    sensor_instance_data.x_data.append(timestamp)
-                    sensor_instance_data.y_data.append(value)
-                else:
-                    logging.error("No space to put the new data!")
-                    pass
+            else:
+                sensor_type = SensorType(sensor_type_str)
+                g_topic_data[sensor_type_str] = sensor_type
+
+            # get or create a series for this sensor if there is none
+            if sensor_name_str in sensor_type.series_data:
+                sensor_instance_data: SensorInstanceData = sensor_type.series_data[
+                    sensor_name_str]
+            else:
+                sensor_instance_data = sensor_type.add_series(sensor_name_str)
+
+            # put the data points
+            sensor_instance_data.x_data.append(timestamp)
+            sensor_instance_data.y_data.append(value)
 
 
 app = Flask(__name__)
@@ -175,7 +175,8 @@ def get_data(sensor_name, sensor_type):
         if sensor_type in g_topic_data:
             sensor_type_data: SensorType = g_topic_data[sensor_type]
             if sensor_name in sensor_type_data.series_data:
-                sensor_instance_data: SensorInstanceData = sensor_type_data.series_data[sensor_name]
+                sensor_instance_data: SensorInstanceData = sensor_type_data.series_data[
+                    sensor_name]
                 return jsonify(x=sensor_instance_data.x_data, y=sensor_instance_data.y_data)
     return jsonify(x=[], y=[])
 
