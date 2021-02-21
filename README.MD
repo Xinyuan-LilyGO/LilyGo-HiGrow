@@ -3,15 +3,23 @@ TTGO HiGrow
 
 ![](image/T-Higrow.jpg)
 
-### Button operations
+
+## Operation
+
+Use `platformio` to compile and upload firmware to the device.  The firmware periodically takes measurements using sensors of the device (see `The measurements` below), and every few measurements connects to the local Wifi access point to broadcast them to an MQTT broker at address `ttgo-server.local`.
+
+See the README in `mqtt-server` for how to set up and run the server.
+
+
+## Button operations
 - *Long press* the *BOOT* button to enter smartconfig mode
 - *Long press* the *User* button to enter deepsleep mode
 - *Double press* the User button to enter smartconfig mode
 - *Press* the *Reset* button to reset the device
 
-### The numbers
+## The measurements
 
-## Soil
+### Soil
 
 This is a measure of the moisture content of the soil.
 
