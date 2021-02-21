@@ -88,12 +88,18 @@ class SensorType:
         return self.sensor_type
 
 
-def sensor_type_and_name_from_topic(topic: str):
+def sensor_type_and_name_from_db_name(topic: str):
     # sensor type is the last part in the topic
     topic_parts = topic.split("/")
     sensor_name_str = topic_parts[-2]
     sensor_type_str = topic_parts[-1]
     return sensor_type_str, sensor_name_str
+
+
+def sensor_name_from_topic(topic: str):
+    topic_parts = topic.split("/")
+    sensor_name = topic_parts[-1]
+    return sensor_name
 
 
 def new_topic_callback(topic):
@@ -132,7 +138,7 @@ def new_data_callback(topic, data: bytearray):
     }
 
     # write into database and update local storage
-    sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
+    sensor_name = sensor_name_from_topic(topic)
     with g_topic_data_lock:
 
         for sensor_type_str, value in measurements_dict.items():
@@ -150,11 +156,11 @@ def new_data_callback(topic, data: bytearray):
                 g_topic_data[sensor_type_str] = sensor_type
 
             # get or create a series for this sensor if there is none
-            if sensor_name_str in sensor_type.series_data:
+            if sensor_name in sensor_type.series_data:
                 sensor_instance_data: SensorInstanceData = sensor_type.series_data[
-                    sensor_name_str]
+                    sensor_name]
             else:
-                sensor_instance_data = sensor_type.add_series(sensor_name_str)
+                sensor_instance_data = sensor_type.add_series(sensor_name)
 
             # put the data points
             sensor_instance_data.x_data.append(timestamp)
@@ -348,7 +354,7 @@ if __name__ == "__main__":
         data = database.get_data(topic)
 
         # sensor type is the last part in the topic
-        sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(
+        sensor_type_str, sensor_name_str = sensor_type_and_name_from_db_name(
             topic)
 
         with g_topic_data_lock:
