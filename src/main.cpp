@@ -31,8 +31,8 @@ constexpr bool kServerIsLocal = true;
 constexpr char kNextSensorNameAPI[] = "/sensors/next/";
 
 // working data stored in RTC memory
-constexpr uint32_t kTimeBetweenMeasurements_ms = 1000;     //2 * 60 * 1000;
-constexpr uint8_t kNumMeasurementsToTakeBeforeSending = 1; //5;
+constexpr uint32_t kTimeBetweenMeasurements_ms = 2 * 60 * 1000;
+constexpr uint8_t kNumMeasurementsToTakeBeforeSending = 5;
 RTC_DATA_ATTR ttgo_proto_Measurements g_measurements[kNumMeasurementsToTakeBeforeSending];
 RTC_DATA_ATTR uint8_t g_numMeasurementsRecorded = 0;
 constexpr uint32_t kTimeBetweenRTCUpdates_ms = 1 * 60 * 60 * 1000;          // how often is the real time clock updated using NTC server
