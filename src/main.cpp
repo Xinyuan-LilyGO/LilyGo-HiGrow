@@ -26,8 +26,9 @@ constexpr char kMQTTBroker[] = "ttgo-server";
 constexpr uint16_t kMQTTBrokerPort = 1883;
 char g_mqttTopicRoot[1024] = "sensors";
 constexpr char kServerAddress[] = "ttgo-server";
+constexpr uint16_t kServerPort = 1234;
 constexpr bool kServerIsLocal = true;
-constexpr char kNextSensorNameAPI[] = "/sensors/next";
+constexpr char kNextSensorNameAPI[] = "/sensors/next/";
 
 // working data stored in RTC memory
 constexpr uint32_t kTimeBetweenMeasurements_ms = 1000;     //2 * 60 * 1000;
@@ -164,16 +165,23 @@ bool connectToWifi()
         PRINT("Connecting to ");
         PRINT(ssid);
         WiFi.begin(ssid, password);
+        const uint32_t start_ms = millis();
+        constexpr uint32_t kWifiConnectTimeout_ms = 20 * 1000;
         while (WiFi.status() != WL_CONNECTED)
         {
             delay(500);
-            Serial.print(".");
+            PRINT(".");
+            if (millis() - start_ms > kWifiConnectTimeout_ms)
+            {
+                PRINTLN("\nFailed to connect to WiFi");
+                return false;
+            }
         }
         PRINTLN("");
     }
     if (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
-        PRINTLN("WiFi connect fail!,please restart retry,or long press BOOT button enter smart config mode\n");
+        PRINTLN("Failed to connect to WiFi");
         return false;
     }
     else if (WiFi.status() == WL_CONNECTED)
@@ -323,9 +331,19 @@ void setup()
         if (!tryReadSensorName(sensorName))
         {
             // get a name from the server
-            if (!getNextSensorName(&g_wifiClient, kServerAddress, kServerIsLocal, kNextSensorNameAPI, sensorName, MAX_SENSOR_NAME + 1))
+            if (!getNextSensorName(&g_wifiClient, kServerAddress, kServerPort, kNextSensorNameAPI, sensorName, MAX_SENSOR_NAME + 1, kServerIsLocal))
             {
-                Serial.println("Failed to get sensor name...");
+                Serial.println("Failed to get sensor name.  Using DEFAULT");
+                strcpy(sensorName, "DEFAULT");
+            }
+            else
+            {
+                Serial.print("Retrieved new sensor name: ");
+                Serial.println(sensorName);
+                if (!writeSensorName(sensorName))
+                {
+                    Serial.println("Failed to save sensor name");
+                }
             }
         }
 

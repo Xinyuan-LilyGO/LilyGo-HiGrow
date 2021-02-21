@@ -2,16 +2,21 @@
 #include "HttpClient.h"
 #include <ESPmDNS.h>
 
+#define xstr(s) str(s)
+#define str(s) #s
+
+#define USER_AGENT "TTGO-Sensor (" str(FW_VERSION_MAJOR) "." str(FW_VERSION_MINOR) "." str(FW_VERSION_PATCH) ")"
+
 namespace
 {
-    bool getNextSensorName(HttpClient *httpClient, const char *serverAddress, const char *apiPath, char *outSensorName, uint8_t bufferLength)
+    bool getNextSensorName(HttpClient *httpClient, const char *serverAddress, uint16_t serverPort, const char *apiPath, char *outSensorName, uint8_t bufferLength)
     {
         int error = 0;
 
         Serial.print("Performing GET request to: ");
         Serial.print(serverAddress);
         Serial.println(apiPath);
-        error = httpClient->get(serverAddress, apiPath);
+        error = httpClient->get(serverAddress, serverPort, apiPath, USER_AGENT);
         if (error != 0)
         {
             Serial.println("HTTP connection failed");
@@ -63,11 +68,30 @@ namespace
             }
         }
 
+        if (remaining > 0)
+        {
+            Serial.print("Expected ");
+            Serial.print(remaining);
+            Serial.println(" more characters");
+        }
+
+        // response is json, so strip the " from the start and end
+        // copy from position 1 to 0, and replace trailing " with 0
+        const size_t len = strlen(outSensorName);
+        strcpy(outSensorName, outSensorName + 1);
+        outSensorName[len - 2] = 0;
+
         return true;
     }
 }
 
-bool getNextSensorName(WiFiClient *wifiClient, const char *serverAddress, bool mdnsLookup, const char *apiPath, char *outSensorName, uint8_t bufferLength)
+bool getNextSensorName(WiFiClient *wifiClient,    //
+                       const char *serverAddress, //
+                       uint16_t serverPort,       //
+                       const char *apiPath,       //
+                       char *outSensorName,       //
+                       uint8_t bufferLength,      //
+                       bool mdnsLookup)
 {
     HttpClient httpClient(*wifiClient);
     bool success = false;
@@ -85,6 +109,7 @@ bool getNextSensorName(WiFiClient *wifiClient, const char *serverAddress, bool m
         Serial.println(hostAddress);
         success = getNextSensorName(&httpClient,                    //
                                     hostAddress.toString().c_str(), //
+                                    serverPort,                     //
                                     apiPath,                        //
                                     outSensorName,                  //
                                     bufferLength);
@@ -93,6 +118,7 @@ bool getNextSensorName(WiFiClient *wifiClient, const char *serverAddress, bool m
     {
         success = getNextSensorName(&httpClient,   //
                                     serverAddress, //
+                                    serverPort,    //
                                     apiPath,       //
                                     outSensorName, //
                                     bufferLength);

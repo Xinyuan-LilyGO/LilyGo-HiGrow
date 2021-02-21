@@ -22,7 +22,7 @@ import database
 
 
 DEFAULT_MQTT_BROKER = "ttgo-server.local"
-DEFAULT_FLASK_PORT = 80
+DEFAULT_FLASK_PORT = 1234
 DEFAULT_DB_PATH = os.path.join("databases", "database.db")
 MAX_DATA_LENGTH = 5000
 g_topic_data = {}
@@ -169,6 +169,7 @@ app.json_encoder = CustomJSONEncoder
 def get_topics():
     return jsonify(database.get_topics())
 
+
 def get_sensor_names():
     """
     Returns a list of unique sensor names in the database
@@ -188,6 +189,7 @@ def get_sensor_names():
         if sensor_name not in sensor_names:
             sensor_names.append(sensor_name)
     return sensor_names
+
 
 @app.route('/sensors/next/')
 def get_next_sensor():
@@ -211,6 +213,7 @@ def get_next_sensor():
         mimetype='application/json'
     )
     return response
+
 
 @app.route('/sensors/')
 def get_sensors():
