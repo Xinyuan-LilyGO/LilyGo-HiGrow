@@ -57,7 +57,7 @@ namespace
 
                 if (bufferPos == bufferLength)
                 {
-                    Serial.println("Buffer filed");
+                    Serial.println("Buffer filled");
                     break;
                 }
             }

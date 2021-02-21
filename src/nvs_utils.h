@@ -17,5 +17,12 @@ bool tryReadSSIDPW(char *ssid, char *pwd);
 /// returns true if values were written to memory, false otherwise
 bool writeSSIDPW(const char *ssid, const char *pwd);
 
+/// @brief Try to write the supplied sensor \p name into non volatile storage
+/// @param[in] name The sensor name to try and store
+/// @returns true if the save was successfull
 bool writeSensorName(const char *name);
+
+/// @brief Try to read the sensor name from non volatile storage (previously saved using writeSensorName)
+/// @param name pointer to a buffer that is filled with the sensor name if successfull
+/// @returns true if the read was successfull, in which case the buffer \p name is filled with the read name
 bool tryReadSensorName(char *name);
