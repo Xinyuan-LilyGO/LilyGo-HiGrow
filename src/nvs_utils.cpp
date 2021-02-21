@@ -2,6 +2,8 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 
+#define SENSOR_NAME_KEY "sname"
+
 typedef uint32_t nvs_handle_t;
 
 bool initNVS()
@@ -165,4 +167,80 @@ bool writeSSIDPW(const char *ssid, const char *pwd)
         nvs_close(storage);
         return true;
     }
+}
+
+bool writeSensorName(const char *name)
+{
+    Serial.println("writeSensorName");
+    nvs_handle_t storage;
+    esp_err_t err = nvs_open("store", NVS_READWRITE, &storage);
+    if (err != ESP_OK)
+    {
+        Serial.print("nvs_open: ");
+        Serial.println(esp_err_to_name(err));
+        return false;
+    }
+
+    // Write name
+    if (name == nullptr)
+    {
+        err = nvs_erase_key(storage, SENSOR_NAME_KEY);
+        if (err != ESP_OK)
+        {
+            Serial.print("nvs_erase_key(" SENSOR_NAME_KEY "): ");
+            Serial.println(esp_err_to_name(err));
+            nvs_close(storage);
+            return false;
+        }
+    }
+    else
+    {
+        err = nvs_set_str(storage, SENSOR_NAME_KEY, name);
+        if (err != ESP_OK)
+        {
+            Serial.print("nvs_set_str(" SENSOR_NAME_KEY "): ");
+            Serial.println(esp_err_to_name(err));
+            nvs_close(storage);
+            return false;
+        }
+    }
+    return true;
+}
+
+bool tryReadSensorName(char *name)
+{
+    Serial.println("tryReadSensorName");
+    nvs_handle_t storage;
+    esp_err_t err = nvs_open("store", NVS_READWRITE, &storage);
+    if (err != ESP_OK)
+    {
+        Serial.print("nvs_open: ");
+        Serial.println(esp_err_to_name(err));
+        return false;
+    }
+
+    // Read name
+    size_t length = MAX_SENSOR_NAME;
+    err = nvs_get_str(storage, SENSOR_NAME_KEY, name, &length);
+    switch (err)
+    {
+    case ESP_OK:
+        Serial.print("Sensor name was: ");
+        Serial.println(name);
+        break;
+    default:
+        Serial.print("nvs_get_str(" SENSOR_NAME_KEY "): ");
+        Serial.println(esp_err_to_name(err));
+        nvs_close(storage);
+        return false;
+    }
+
+    if (length > MAX_SENSOR_NAME)
+    {
+        Serial.println("Stored sensor name too long");
+        nvs_close(storage);
+        return false;
+    }
+
+    return true;
 }

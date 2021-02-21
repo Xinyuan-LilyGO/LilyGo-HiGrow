@@ -1,3 +1,4 @@
+from typing import Set
 from flask import Flask
 from flask.json import JSONEncoder
 from flask import render_template, jsonify, request
@@ -14,6 +15,7 @@ import argparse
 from threading import Lock
 import os
 from datetime import datetime
+import json
 import logging
 import logging
 import database
@@ -86,12 +88,18 @@ class SensorType:
         return self.sensor_type
 
 
-def sensor_type_and_name_from_topic(topic: str):
+def sensor_type_and_name_from_db_name(topic: str):
     # sensor type is the last part in the topic
     topic_parts = topic.split("/")
     sensor_name_str = topic_parts[-2]
     sensor_type_str = topic_parts[-1]
     return sensor_type_str, sensor_name_str
+
+
+def sensor_name_from_topic(topic: str):
+    topic_parts = topic.split("/")
+    sensor_name = topic_parts[-1]
+    return sensor_name
 
 
 def new_topic_callback(topic):
@@ -130,7 +138,7 @@ def new_data_callback(topic, data: bytearray):
     }
 
     # write into database and update local storage
-    sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(topic)
+    sensor_name = sensor_name_from_topic(topic)
     with g_topic_data_lock:
 
         for sensor_type_str, value in measurements_dict.items():
@@ -148,11 +156,11 @@ def new_data_callback(topic, data: bytearray):
                 g_topic_data[sensor_type_str] = sensor_type
 
             # get or create a series for this sensor if there is none
-            if sensor_name_str in sensor_type.series_data:
+            if sensor_name in sensor_type.series_data:
                 sensor_instance_data: SensorInstanceData = sensor_type.series_data[
-                    sensor_name_str]
+                    sensor_name]
             else:
-                sensor_instance_data = sensor_type.add_series(sensor_name_str)
+                sensor_instance_data = sensor_type.add_series(sensor_name)
 
             # put the data points
             sensor_instance_data.x_data.append(timestamp)
@@ -166,6 +174,66 @@ app.json_encoder = CustomJSONEncoder
 @app.route('/topics/')
 def get_topics():
     return jsonify(database.get_topics())
+
+
+def get_sensor_names():
+    """
+    Returns a list of unique sensor names in the database
+    """
+
+    # each topic is sensors/<sensor_name>/.....
+    # so to get the observed sensors, just look for unique <sensor_names> in the topic list
+    sensor_names = []
+    topics = database.get_topics()
+    for topic in topics:
+        parts = topic.split('/')
+        if len(parts) <= 1:
+            logging.error(
+                "Unknown topic format in database, expected sensors/<sensor_name>/...: {}".format(topic))
+            continue
+        sensor_name = parts[1]
+        if sensor_name not in sensor_names:
+            sensor_names.append(sensor_name)
+    return sensor_names
+
+
+@app.route('/sensors/next/')
+def get_next_sensor():
+    """
+    Return json of the next available sensor name (i.e. one that doesn't exist yet)
+    """
+    sensor_names = get_sensor_names()
+
+    number = 0
+    while True:
+        candidate_name = "sensor{}".format(number)
+        if candidate_name in sensor_names:
+            # this name already exists so increment counter and try again
+            number += 1
+            continue
+        break
+
+    response = app.response_class(
+        response=json.dumps(candidate_name),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+
+@app.route('/sensors/')
+def get_sensors():
+    """
+    Return JSON list of sensors that have been seen
+    """
+    sensor_names = get_sensor_names()
+
+    response = app.response_class(
+        response=json.dumps(sensor_names),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
 
 
 @app.route('/data/<sensor_type>/<sensor_name>/', methods=['POST'])
@@ -286,7 +354,7 @@ if __name__ == "__main__":
         data = database.get_data(topic)
 
         # sensor type is the last part in the topic
-        sensor_type_str, sensor_name_str = sensor_type_and_name_from_topic(
+        sensor_type_str, sensor_name_str = sensor_type_and_name_from_db_name(
             topic)
 
         with g_topic_data_lock:
@@ -309,9 +377,8 @@ if __name__ == "__main__":
                 y_series_data = y_series_data[1:]
 
     # start the MQTT relay
-    relay = MQTTRelay(
-        topic_filter="sensor0/+",
-        mqtt_host=args.mqtt_broker)
+    relay = MQTTRelay(topic_filter="sensors/#",
+                      mqtt_host=args.mqtt_broker)
     relay.register_new_topic_callback(new_topic_callback)
     relay.register_new_data_callback(new_data_callback)
     logging.info("Starting MQTT relay...")

@@ -2,7 +2,6 @@
 #include <iostream>
 #include <Arduino.h>
 #include <WiFi.h>
-
 #include <Wire.h>
 #include <BH1750.h>
 #include "DHT12_sensor_library/DHT12.h"
@@ -12,6 +11,7 @@
 #include "pb_encode.h"
 #include "nvs_utils.h"
 #include "PubSubClient.h"
+#include "server_helpers.h"
 #include "time_helpers.h"
 #include "pins.h"
 
@@ -19,13 +19,16 @@
 
 BH1750 lightMeter(0x23); //0x23
 DHT12 dht12(DHT12_PIN, true);
-WiFiClient espClient;
-PubSubClient mqttClient(espClient);
+WiFiClient g_wifiClient;
+PubSubClient mqttClient(g_wifiClient);
 
 constexpr char kMQTTBroker[] = "ttgo-server";
 constexpr uint16_t kMQTTBrokerPort = 1883;
-char g_mqttName[1024] = "sensor0";
-char g_mqttTopicRoot[1024] = "sensor0";
+char g_mqttTopicRoot[1024] = "sensors";
+constexpr char kServerAddress[] = "ttgo-server";
+constexpr uint16_t kServerPort = 1234;
+constexpr bool kServerIsLocal = true;
+constexpr char kNextSensorNameAPI[] = "/sensors/next/";
 
 // working data stored in RTC memory
 constexpr uint32_t kTimeBetweenMeasurements_ms = 2 * 60 * 1000;
@@ -162,16 +165,23 @@ bool connectToWifi()
         PRINT("Connecting to ");
         PRINT(ssid);
         WiFi.begin(ssid, password);
+        const uint32_t start_ms = millis();
+        constexpr uint32_t kWifiConnectTimeout_ms = 20 * 1000;
         while (WiFi.status() != WL_CONNECTED)
         {
             delay(500);
-            Serial.print(".");
+            PRINT(".");
+            if (millis() - start_ms > kWifiConnectTimeout_ms)
+            {
+                PRINTLN("\nFailed to connect to WiFi");
+                return false;
+            }
         }
         PRINTLN("");
     }
     if (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
-        PRINTLN("WiFi connect fail!,please restart retry,or long press BOOT button enter smart config mode\n");
+        PRINTLN("Failed to connect to WiFi");
         return false;
     }
     else if (WiFi.status() == WL_CONNECTED)
@@ -316,15 +326,36 @@ void setup()
             }
         }
 
+        // determine our name
+        char sensorName[MAX_SENSOR_NAME + 1];
+        if (!tryReadSensorName(sensorName))
+        {
+            // get a name from the server
+            if (!getNextSensorName(&g_wifiClient, kServerAddress, kServerPort, kNextSensorNameAPI, sensorName, MAX_SENSOR_NAME + 1, kServerIsLocal))
+            {
+                Serial.println("Failed to get sensor name.  Using DEFAULT");
+                strcpy(sensorName, "DEFAULT");
+            }
+            else
+            {
+                Serial.print("Retrieved new sensor name: ");
+                Serial.println(sensorName);
+                if (!writeSensorName(sensorName))
+                {
+                    Serial.println("Failed to save sensor name");
+                }
+            }
+        }
+
         // now send them all
         mqttClient.setServer(kMQTTBroker, kMQTTBrokerPort);
         PRINTLN("Connecting MQTT client...");
         while (!mqttClient.connected())
         {
-            if (mqttClient.connect(g_mqttName))
+            if (mqttClient.connect(sensorName))
             {
                 PRINT("MQTT client connected as '");
-                PRINT(g_mqttName);
+                PRINT(sensorName);
                 PRINTLN("'");
                 break;
             }
@@ -362,7 +393,7 @@ void setup()
 
             // send
             const size_t message_length = stream.bytes_written;
-            publishMessage("measurement", protoBuffer, message_length);
+            publishMessage(sensorName, protoBuffer, message_length);
 
             // print out for debug
             printMeasurements(Serial, measurements);
