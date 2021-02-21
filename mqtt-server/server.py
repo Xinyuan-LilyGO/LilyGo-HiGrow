@@ -175,7 +175,7 @@ def get_sensor_names():
     Returns a list of unique sensor names in the database
     """
 
-    # each topic is <sensor_name>/.....
+    # each topic is sensors/<sensor_name>/.....
     # so to get the observed sensors, just look for unique <sensor_names> in the topic list
     sensor_names = []
     topics = database.get_topics()
@@ -183,9 +183,9 @@ def get_sensor_names():
         parts = topic.split('/')
         if len(parts) <= 1:
             logging.error(
-                "Unknown topic format in database, expected <sensor_name>/.../...: {}".format(topic))
+                "Unknown topic format in database, expected sensors/<sensor_name>/...: {}".format(topic))
             continue
-        sensor_name = parts[0]
+        sensor_name = parts[1]
         if sensor_name not in sensor_names:
             sensor_names.append(sensor_name)
     return sensor_names
@@ -371,9 +371,8 @@ if __name__ == "__main__":
                 y_series_data = y_series_data[1:]
 
     # start the MQTT relay
-    relay = MQTTRelay(
-        topic_filter="+/measurement/+",
-        mqtt_host=args.mqtt_broker)
+    relay = MQTTRelay(topic_filter="sensors/#",
+                      mqtt_host=args.mqtt_broker)
     relay.register_new_topic_callback(new_topic_callback)
     relay.register_new_data_callback(new_data_callback)
     logging.info("Starting MQTT relay...")
