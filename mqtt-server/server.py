@@ -1,3 +1,4 @@
+from typing import Set
 from flask import Flask
 from flask.json import JSONEncoder
 from flask import render_template, jsonify, request
@@ -14,13 +15,14 @@ import argparse
 from threading import Lock
 import os
 from datetime import datetime
+import json
 import logging
 import logging
 import database
 
 
 DEFAULT_MQTT_BROKER = "ttgo-server.local"
-DEFAULT_FLASK_PORT = 1234
+DEFAULT_FLASK_PORT = 80
 DEFAULT_DB_PATH = os.path.join("databases", "database.db")
 MAX_DATA_LENGTH = 5000
 g_topic_data = {}
@@ -167,6 +169,63 @@ app.json_encoder = CustomJSONEncoder
 def get_topics():
     return jsonify(database.get_topics())
 
+def get_sensor_names():
+    """
+    Returns a list of unique sensor names in the database
+    """
+
+    # each topic is <sensor_name>/.....
+    # so to get the observed sensors, just look for unique <sensor_names> in the topic list
+    sensor_names = []
+    topics = database.get_topics()
+    for topic in topics:
+        parts = topic.split('/')
+        if len(parts) <= 1:
+            logging.error(
+                "Unknown topic format in database, expected <sensor_name>/.../...: {}".format(topic))
+            continue
+        sensor_name = parts[0]
+        if sensor_name not in sensor_names:
+            sensor_names.append(sensor_name)
+    return sensor_names
+
+@app.route('/sensors/next/')
+def get_next_sensor():
+    """
+    Return json of the next available sensor name (i.e. one that doesn't exist yet)
+    """
+    sensor_names = get_sensor_names()
+
+    number = 0
+    while True:
+        candidate_name = "sensor{}".format(number)
+        if candidate_name in sensor_names:
+            # this name already exists so increment counter and try again
+            number += 1
+            continue
+        break
+
+    response = app.response_class(
+        response=json.dumps(candidate_name),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
+@app.route('/sensors/')
+def get_sensors():
+    """
+    Return JSON list of sensors that have been seen
+    """
+    sensor_names = get_sensor_names()
+
+    response = app.response_class(
+        response=json.dumps(sensor_names),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
+
 
 @app.route('/data/<sensor_type>/<sensor_name>/', methods=['POST'])
 def get_data(sensor_name, sensor_type):
@@ -310,7 +369,7 @@ if __name__ == "__main__":
 
     # start the MQTT relay
     relay = MQTTRelay(
-        topic_filter="sensor0/+",
+        topic_filter="+/measurement/+",
         mqtt_host=args.mqtt_broker)
     relay.register_new_topic_callback(new_topic_callback)
     relay.register_new_data_callback(new_data_callback)

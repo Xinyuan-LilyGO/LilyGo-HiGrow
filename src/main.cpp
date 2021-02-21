@@ -2,7 +2,6 @@
 #include <iostream>
 #include <Arduino.h>
 #include <WiFi.h>
-
 #include <Wire.h>
 #include <BH1750.h>
 #include "DHT12_sensor_library/DHT12.h"
@@ -12,6 +11,7 @@
 #include "pb_encode.h"
 #include "nvs_utils.h"
 #include "PubSubClient.h"
+#include "server_helpers.h"
 #include "time_helpers.h"
 #include "pins.h"
 
@@ -19,17 +19,19 @@
 
 BH1750 lightMeter(0x23); //0x23
 DHT12 dht12(DHT12_PIN, true);
-WiFiClient espClient;
-PubSubClient mqttClient(espClient);
+WiFiClient g_wifiClient;
+PubSubClient mqttClient(g_wifiClient);
 
 constexpr char kMQTTBroker[] = "ttgo-server";
 constexpr uint16_t kMQTTBrokerPort = 1883;
-char g_mqttName[1024] = "sensor0";
-char g_mqttTopicRoot[1024] = "sensor0";
+char g_mqttTopicRoot[1024] = "sensors";
+constexpr char kServerAddress[] = "ttgo-server";
+constexpr bool kServerIsLocal = true;
+constexpr char kNextSensorNameAPI[] = "/sensors/next";
 
 // working data stored in RTC memory
-constexpr uint32_t kTimeBetweenMeasurements_ms = 2 * 60 * 1000;
-constexpr uint8_t kNumMeasurementsToTakeBeforeSending = 5;
+constexpr uint32_t kTimeBetweenMeasurements_ms = 1000;     //2 * 60 * 1000;
+constexpr uint8_t kNumMeasurementsToTakeBeforeSending = 1; //5;
 RTC_DATA_ATTR ttgo_proto_Measurements g_measurements[kNumMeasurementsToTakeBeforeSending];
 RTC_DATA_ATTR uint8_t g_numMeasurementsRecorded = 0;
 constexpr uint32_t kTimeBetweenRTCUpdates_ms = 1 * 60 * 60 * 1000;          // how often is the real time clock updated using NTC server
@@ -316,15 +318,26 @@ void setup()
             }
         }
 
+        // determine our name
+        char sensorName[MAX_SENSOR_NAME + 1];
+        if (!tryReadSensorName(sensorName))
+        {
+            // get a name from the server
+            if (!getNextSensorName(&g_wifiClient, kServerAddress, kServerIsLocal, kNextSensorNameAPI, sensorName, MAX_SENSOR_NAME + 1))
+            {
+                Serial.println("Failed to get sensor name...");
+            }
+        }
+
         // now send them all
         mqttClient.setServer(kMQTTBroker, kMQTTBrokerPort);
         PRINTLN("Connecting MQTT client...");
         while (!mqttClient.connected())
         {
-            if (mqttClient.connect(g_mqttName))
+            if (mqttClient.connect(sensorName))
             {
                 PRINT("MQTT client connected as '");
-                PRINT(g_mqttName);
+                PRINT(sensorName);
                 PRINTLN("'");
                 break;
             }
@@ -362,7 +375,7 @@ void setup()
 
             // send
             const size_t message_length = stream.bytes_written;
-            publishMessage("measurement", protoBuffer, message_length);
+            publishMessage(sensorName, protoBuffer, message_length);
 
             // print out for debug
             printMeasurements(Serial, measurements);
