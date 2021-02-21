@@ -23,7 +23,7 @@ Treating the "bytton" pad as a capacitor to ground whose capacitance changes wit
 
 (See the LTSpice model in `\electronics\`)
 
-![](electronics/Humivoltage.png)
+![](electronics/Humivoltage.PNG)
 
 The dielectric constant of water is `80.4` [2] and dry soil is around `4` [1], so presumably, as the moisture content of the soil increases, the dielectric constant, and thus capacitance of the "bytton" increases, and so the voltage drops.
 
