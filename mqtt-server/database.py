@@ -156,7 +156,7 @@ class Database:
         with self.__db_lock:
             try:
                 # insert the message
-                timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
                 sql = "INSERT INTO `events` (`topic`, `data`, `format_string`, `timestamp`) " \
                     "VALUES (?, ?, ?, ?);"
                 self.__cursor.execute(
