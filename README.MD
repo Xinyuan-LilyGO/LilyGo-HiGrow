@@ -8,7 +8,7 @@
 - View the obtained ip address in the serial output,  enter the ip address in the browser to view the data.
 
 
-![](image/3.png)
+![](image/web.png)
 
 ### 3D file
 
