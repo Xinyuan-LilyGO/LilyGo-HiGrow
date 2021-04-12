@@ -1,0 +1,32 @@
+{
+  "name": "ESP-DASH",
+  "keywords": "EspDash, esp8266, esp32, ui, dashboard, user, ux, interface, gui, iot, arduino, Wifi, server",
+  "description": "A blazing fast library to create realtime dashboards for ESP8266's and ESP32's.",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/ayushsharma82/ESP-DASH.git"
+  },
+  "authors":
+  [
+    {
+      "name": "Ayush Sharma",
+      "email": "asrocks5@gmail.com",
+      "maintainer": true
+    }
+  ],
+  "version": "3.0.5",
+  "frameworks": "arduino",
+  "platforms": "espressif",
+  "dependencies":
+  [
+    {
+      "name": "ESP Async WebServer",
+      "version": "1.2.3"
+    },
+    {
+      "name": "ArduinoJson",
+      "version": "6.17.0"
+    }
+  ]
+}
