@@ -380,7 +380,7 @@ void deviceProbe(TwoWire &t)
             Serial.println(" !");
             switch (addr) {
             case OB_BH1750_ADDRESS:
-                has_dhtSensor = true;
+                has_lightSensor = true;
                 break;
             case OB_BME280_ADDRESS:
                 has_bmeSensor = true;
