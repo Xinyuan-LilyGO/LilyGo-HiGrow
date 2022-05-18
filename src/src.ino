@@ -9,6 +9,7 @@
 #include <DHT12.h>              //https://github.com/xreef/DHT12_sensor_library
 #include "ds18b20.h"
 #include "configuration.h"
+#include "cJSON.h"
 
 #ifdef __HAS_BME280__
 #include <Adafruit_BME280.h>
@@ -22,6 +23,9 @@
 #include <Adafruit_NeoPixel.h>
 #endif
 
+#ifdef __HAS_LORA__
+#include <LoRa.h>
+#endif
 
 typedef enum {
     BME280_SENSOR_ID,
@@ -104,6 +108,11 @@ Card *sht3xHumidity       = new Card(&dashboard, HUMIDITY_CARD, DASH_SHT3X_HUMID
 Card motorButton(&dashboard, BUTTON_CARD, DASH_MOTOR_CTRL_STRING);
 #endif  /*__HAS_MOTOR__*/
 
+#ifdef  __HAS_LORA__
+void loopLoRa(higrow_sensors_event_t *val);
+bool isLoraOnline = false;
+#endif /*__HAS_LORA__*/
+
 
 void deviceProbe(TwoWire &t);
 
@@ -126,6 +135,10 @@ void smartConfigStart(Button2 &b)
 
 void sleepHandler(Button2 &b)
 {
+#ifdef __HAS_LORA__
+    LoRa.sleep();
+    SPI.end();
+#endif
     Serial.println("Enter Deepsleep ...");
     esp_sleep_enable_ext1_wakeup(GPIO_SEL_35, ESP_EXT1_WAKEUP_ALL_LOW);
     delay(1000);
@@ -165,7 +178,6 @@ void setupWiFi()
 
 bool get_higrow_sensors_event(sensor_id_t id, higrow_sensors_event_t &val)
 {
-    memset(&val, 0, sizeof(higrow_sensors_event_t));
     switch (id) {
 #ifdef __HAS_BME280__
     case BME280_SENSOR_ID: {
@@ -263,7 +275,7 @@ void setup()
 
     //! Sensor power control pin , use deteced must set high
     pinMode(POWER_CTRL, OUTPUT);
-    digitalWrite(POWER_CTRL, 1);
+    digitalWrite(POWER_CTRL, HIGH);
     delay(1000);
 
     Wire.begin(I2C_SDA, I2C_SCL);
@@ -289,6 +301,11 @@ void setup()
     deviceProbe(Wire1);
 #endif /*__HAS_SHT3X__*/
 
+
+#ifdef __HAS_LORA__
+    setupLoRa();
+#endif
+
     setupWiFi();
 
 #ifdef __HAS_MOTOR__
@@ -308,6 +325,9 @@ void setup()
         dashboard.sendUpdates();
     });
 #endif  /*__HAS_MOTOR__*/
+
+
+
 
 }
 
@@ -360,6 +380,10 @@ void loop()
 
 
         dashboard.sendUpdates();
+
+#ifdef __HAS_LORA__
+        loopLoRa(&val);
+#endif
     }
 }
 
@@ -404,3 +428,45 @@ void deviceProbe(TwoWire &t)
     else
         Serial.println("done\n");
 }
+
+
+#ifdef __HAS_LORA__
+void setupLoRa()
+{
+    SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
+    LoRa.setPins(RADIO_CS_PIN, RADIO_RESET_PIN, RADIO_DI0_PIN);
+    if (!LoRa.begin(LoRa_frequency)) {
+        Serial.println("Start LoRa failed!");
+        return;
+    }
+    isLoraOnline = true;
+}
+
+void loopLoRa(higrow_sensors_event_t *val)
+{
+    if (!isLoraOnline)return;
+
+    /**
+     *   The transmission JSON format is sent through LoRa,
+     *   and the data will be parsed in the receiving node
+     */
+
+    cJSON *root =  cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "L", String(val->light).c_str());
+    cJSON_AddStringToObject(root, "S", String(val->soli).c_str());
+    cJSON_AddStringToObject(root, "A", String(val->salt).c_str());
+    cJSON_AddStringToObject(root, "V", String(val->voltage).c_str());
+    cJSON_AddStringToObject(root, "T", String(val->temperature).c_str());
+
+    LoRa.beginPacket();
+    char *packet = cJSON_Print(root);
+    LoRa.print(packet);
+    LoRa.endPacket();
+
+    cJSON_Delete(root);
+}
+
+#endif
+
+
+

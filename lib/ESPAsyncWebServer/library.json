@@ -12,18 +12,26 @@
     "type": "git",
     "url": "https://github.com/me-no-dev/ESPAsyncWebServer.git"
   },
-  "version": "1.2.0",
+  "version": "1.2.3",
   "license": "LGPL-3.0",
   "frameworks": "arduino",
   "platforms": ["espressif8266", "espressif32"],
   "dependencies": [
     {
+      "owner": "me-no-dev",
       "name": "ESPAsyncTCP",
+      "version": "^1.2.2",
       "platforms": "espressif8266"
     },
     {
+      "owner": "me-no-dev",      
       "name": "AsyncTCP",
+      "version": "^1.1.1",
       "platforms": "espressif32"
+    },
+    {
+      "name": "Hash",
+      "platforms": "espressif8266"
     }
   ]
 }

@@ -55,6 +55,7 @@ AsyncWebServerRequest::AsyncWebServerRequest(AsyncWebServer* s, AsyncClient* c)
   , _parsedLength(0)
   , _headers(LinkedList<AsyncWebHeader *>([](AsyncWebHeader *h){ delete h; }))
   , _params(LinkedList<AsyncWebParameter *>([](AsyncWebParameter *p){ delete p; }))
+  , _pathParams(LinkedList<String *>([](String *p){ delete p; }))
   , _multiParseState(0)
   , _boundaryPosition(0)
   , _itemStartIndex(0)
@@ -68,18 +69,19 @@ AsyncWebServerRequest::AsyncWebServerRequest(AsyncWebServer* s, AsyncClient* c)
   , _itemIsFile(false)
   , _tempObject(NULL)
 {
-  c->onError([](void *r, AsyncClient* c, int8_t error){ AsyncWebServerRequest *req = (AsyncWebServerRequest*)r; req->_onError(error); }, this);
-  c->onAck([](void *r, AsyncClient* c, size_t len, uint32_t time){ AsyncWebServerRequest *req = (AsyncWebServerRequest*)r; req->_onAck(len, time); }, this);
+  c->onError([](void *r, AsyncClient* c, int8_t error){ (void)c; AsyncWebServerRequest *req = (AsyncWebServerRequest*)r; req->_onError(error); }, this);
+  c->onAck([](void *r, AsyncClient* c, size_t len, uint32_t time){ (void)c; AsyncWebServerRequest *req = (AsyncWebServerRequest*)r; req->_onAck(len, time); }, this);
   c->onDisconnect([](void *r, AsyncClient* c){ AsyncWebServerRequest *req = (AsyncWebServerRequest*)r; req->_onDisconnect(); delete c; }, this);
-  c->onTimeout([](void *r, AsyncClient* c, uint32_t time){ AsyncWebServerRequest *req = (AsyncWebServerRequest*)r; req->_onTimeout(time); }, this);
-  c->onData([](void *r, AsyncClient* c, void *buf, size_t len){ AsyncWebServerRequest *req = (AsyncWebServerRequest*)r; req->_onData(buf, len); }, this);
-  c->onPoll([](void *r, AsyncClient* c){ AsyncWebServerRequest *req = (AsyncWebServerRequest*)r; req->_onPoll(); }, this);
+  c->onTimeout([](void *r, AsyncClient* c, uint32_t time){ (void)c; AsyncWebServerRequest *req = (AsyncWebServerRequest*)r; req->_onTimeout(time); }, this);
+  c->onData([](void *r, AsyncClient* c, void *buf, size_t len){ (void)c; AsyncWebServerRequest *req = (AsyncWebServerRequest*)r; req->_onData(buf, len); }, this);
+  c->onPoll([](void *r, AsyncClient* c){ (void)c; AsyncWebServerRequest *req = ( AsyncWebServerRequest*)r; req->_onPoll(); }, this);
 }
 
 AsyncWebServerRequest::~AsyncWebServerRequest(){
   _headers.free();
 
   _params.free();
+  _pathParams.free();
 
   _interestingHeaders.free();
 
@@ -206,10 +208,11 @@ void AsyncWebServerRequest::_onAck(size_t len, uint32_t time){
 }
 
 void AsyncWebServerRequest::_onError(int8_t error){
-
+  (void)error;
 }
 
 void AsyncWebServerRequest::_onTimeout(uint32_t time){
+  (void)time;
   //os_printf("TIMEOUT: %u, state: %s\n", time, _client->stateToString());
   _client->close();
 }
@@ -228,6 +231,10 @@ void AsyncWebServerRequest::_onDisconnect(){
 
 void AsyncWebServerRequest::_addParam(AsyncWebParameter *p){
   _params.add(p);
+}
+
+void AsyncWebServerRequest::_addPathParam(const char *p){
+  _pathParams.add(new String(p));
 }
 
 void AsyncWebServerRequest::_addGetParams(const String& params){
@@ -310,13 +317,11 @@ bool AsyncWebServerRequest::_parseReqHeader(){
     if(name.equalsIgnoreCase("Host")){
       _host = value;
     } else if(name.equalsIgnoreCase("Content-Type")){
+	  _contentType = value.substring(0, value.indexOf(';'));
       if (value.startsWith("multipart/")){
         _boundary = value.substring(value.indexOf('=')+1);
         _boundary.replace("\"","");
-        _contentType = value.substring(0, value.indexOf(';'));
         _isMultipart = true;
-      } else {
-        _contentType = value;
       }
     } else if(name.equalsIgnoreCase("Content-Length")){
       _contentLength = atoi(value.c_str());
@@ -910,6 +915,11 @@ const String& AsyncWebServerRequest::arg(size_t i) const {
 
 const String& AsyncWebServerRequest::argName(size_t i) const {
   return getParam(i)->name();
+}
+
+const String& AsyncWebServerRequest::pathArg(size_t i) const {
+  auto param = _pathParams.nth(i);
+  return param ? **param : SharedEmptyString;
 }
 
 const String& AsyncWebServerRequest::header(const char* name) const {

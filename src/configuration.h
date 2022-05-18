@@ -3,7 +3,7 @@
 /*
     The default is hotspot mode, the note will be connected to the configured WiFi
 */
-// #define SOFTAP_MODE
+#define SOFTAP_MODE
 
 
 
@@ -13,6 +13,15 @@
 // #define __HAS_BME280__               //BME280 temperature, humidity, pressure, height sensor
 // #define __HAS_MOTOR__                //High and low level control relay, or other level drive motor
 // #define __HAS_RGB__                  //WS2812 single point colorful light
+// #define __HAS_LORA__                 //HiGrow lora shield ,use sx127x
+
+/*
+* if you need to change it,
+* please open this note and change to the frequency you need to test
+* Option: 433E6,470E6,868E6,915E6
+* */
+
+#define LoRa_frequency      868E6
 
 
 // Only one of the following two can be selected, otherwise there will be conflicts
@@ -38,6 +47,17 @@
 
 #define MOTOR_PIN               (19)
 #define RGB_PIN                 (18)
+
+
+#define RADIO_RESET_PIN         (23)
+#define RADIO_DI0_PIN           (14)
+#define RADIO_DI1_PIN           (13)
+#define RADIO_DI2_PIN           (15)
+#define RADIO_CS_PIN            (18)
+#define RADIO_MISO_PIN          (19)
+#define RADIO_MOSI_PIN          (27)
+#define RADIO_SCLK_PIN          (5)
+
 
 #define OB_BH1750_ADDRESS       (0x23)
 #define OB_BME280_ADDRESS       (0x77)

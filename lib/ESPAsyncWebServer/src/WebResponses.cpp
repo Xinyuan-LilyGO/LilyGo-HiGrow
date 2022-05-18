@@ -161,7 +161,7 @@ bool AsyncWebServerResponse::_finished() const { return _state > RESPONSE_WAIT_A
 bool AsyncWebServerResponse::_failed() const { return _state == RESPONSE_FAILED; }
 bool AsyncWebServerResponse::_sourceValid() const { return false; }
 void AsyncWebServerResponse::_respond(AsyncWebServerRequest *request){ _state = RESPONSE_END; request->client()->close(); }
-size_t AsyncWebServerResponse::_ack(AsyncWebServerRequest *request, size_t len, uint32_t time){ return 0; }
+size_t AsyncWebServerResponse::_ack(AsyncWebServerRequest *request, size_t len, uint32_t time){ (void)request; (void)len; (void)time; return 0; }
 
 /*
  * String/Code Response
@@ -213,6 +213,7 @@ void AsyncBasicResponse::_respond(AsyncWebServerRequest *request){
 }
 
 size_t AsyncBasicResponse::_ack(AsyncWebServerRequest *request, size_t len, uint32_t time){
+  (void)time;
   _ackedLength += len;
   if(_state == RESPONSE_CONTENT){
     size_t available = _contentLength - _sentLength;
@@ -261,6 +262,7 @@ void AsyncAbstractResponse::_respond(AsyncWebServerRequest *request){
 }
 
 size_t AsyncAbstractResponse::_ack(AsyncWebServerRequest *request, size_t len, uint32_t time){
+  (void)time;
   if(!_sourceValid()){
     _state = RESPONSE_FAILED;
     request->client()->close();
@@ -446,6 +448,7 @@ size_t AsyncAbstractResponse::_fillBufferAndProcessTemplates(uint8_t* data, size
         _cache.insert(_cache.begin(), &data[originalLen - (pTemplateStart + numBytesCopied - pTemplateEnd - 1)], &data[len]);
         //2. parameter value is longer than placeholder text, push the data after placeholder which not saved into cache further to the end
         memmove(pTemplateStart + numBytesCopied, pTemplateEnd + 1, &data[originalLen] - pTemplateStart - numBytesCopied);
+        len = originalLen; // fix issue with truncated data, not sure if it has any side effects
       } else if(pTemplateEnd + 1 != pTemplateStart + numBytesCopied)
         //2. Either parameter value is shorter than placeholder text OR there is enough free space in buffer to fit.
         //   Move the entire data after the placeholder
