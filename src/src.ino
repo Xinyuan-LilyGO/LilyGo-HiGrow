@@ -102,7 +102,7 @@ Card *dsTemperature     = new Card(&dashboard, TEMPERATURE_CARD, DASH_DS18B20_ST
 #ifdef __HAS_SHT3X__
 Card *sht3xTemperature    = new Card(&dashboard, TEMPERATURE_CARD, DASH_SHT3X_TEMPERATURE_STRING, "°C");
 Card *sht3xHumidity       = new Card(&dashboard, HUMIDITY_CARD, DASH_SHT3X_HUMIDITY_STRING, "%");
-#endif  /*__HAS_DS18B20__*/
+#endif  /*__HAS_SHT3X__*/
 
 #ifdef __HAS_MOTOR__
 Card motorButton(&dashboard, BUTTON_CARD, DASH_MOTOR_CTRL_STRING);
