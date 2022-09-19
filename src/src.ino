@@ -6,26 +6,15 @@
 #include <ESPDash.h>            //https://github.com/ayushsharma82/ESP-DASH
 #include <Button2.h>            //https://github.com/LennartHennigs/Button2
 #include <BH1750.h>             //https://github.com/claws/BH1750
-#include <DHT12.h>              //https://github.com/xreef/DHT12_sensor_library
-#include "ds18b20.h"
-#include "configuration.h"
-#include "cJSON.h"
-
-#ifdef __HAS_BME280__
-#include <Adafruit_BME280.h>
-#endif
-
-#ifdef __HAS_SHT3X__
-#include "SHT3X.h"
-#endif
-
-#ifdef __HAS_MOTOR__
-#include <Adafruit_NeoPixel.h>
-#endif
-
-#ifdef __HAS_LORA__
+#include <cJSON.h>
+#include <OneWire.h>
 #include <LoRa.h>
-#endif
+#include <Adafruit_BME280.h>
+#include <Adafruit_SHT31.h>
+#include <Adafruit_NeoPixel.h>
+#include "DHT.h"
+#include "configuration.h"
+
 
 typedef enum {
     BME280_SENSOR_ID,
@@ -53,72 +42,57 @@ typedef struct {
 
 AsyncWebServer      server(80);
 ESPDash             dashboard(&server);
-BH1750              lightMeter(OB_BH1750_ADDRESS);  //0x23
-DHT12               dht12(DHT12_PIN, true);
+
 Button2             button(BOOT_PIN);
 Button2             useButton(USER_BUTTON);
 
-#ifdef __HAS_DS18B20__
-DS18B20             dsSensor(DS18B20_PIN);
-#endif /*__HAS_DS18B20__*/
-
-#ifdef __HAS_SHT3X__
-SHT3X               sht30;
-#endif /*__HAS_SHT3X__*/
-
-#ifdef __HAS_BME280__
+BH1750              lightMeter(OB_BH1750_ADDRESS);  //0x23
+DHT                 dht(DHT1x_PIN, DHTTYPE);
+OneWire             ds;
+Adafruit_SHT31      sht31 = Adafruit_SHT31(&Wire1);
 Adafruit_BME280     bme;                            //0x77
-#endif /*__HAS_BME280__*/
-
-#ifdef __HAS_MOTOR__
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(1, RGB_PIN, NEO_GRB + NEO_KHZ800);
-#endif  /*__HAS_MOTOR__*/
 
 
-bool                has_bmeSensor   = true;
-bool                has_lightSensor = true;
-bool                has_dhtSensor   = true;
-uint64_t            timestamp       = 0;
+Adafruit_NeoPixel *pixels = NULL;
 
+bool                    has_lora_shield = false;
+bool                    has_bmeSensor   = false;
+bool                    has_lightSensor = false;
+bool                    has_dhtSensor   = false;
+bool                    has_sht3xSensor = false;
+bool                    has_ds18b20     = false;
+bool                    has_dht11       = false;
 
-Card *dhtTemperature    = new Card(&dashboard, TEMPERATURE_CARD, DASH_DHT_TEMPERATURE_STRING, "°C");
-Card *dhtHumidity       = new Card(&dashboard, HUMIDITY_CARD, DASH_DHT_HUMIDITY_STRING, "%");
-Card *illumination      = new Card(&dashboard, GENERIC_CARD, DASH_BH1750_LUX_STRING, "lx");
-Card *soilValue         = new Card(&dashboard, GENERIC_CARD, DASH_SOIL_VALUE_STRING, "%");
+uint64_t                timestamp       = 0;
+uint8_t                 ds18b20Addr[8];
+uint8_t                 ds18b20Type;
+
+Card *dhtTemperature    = NULL;
+Card *dhtHumidity       = NULL;
 Card *saltValue         = new Card(&dashboard, GENERIC_CARD, DASH_SALT_VALUE_STRING, "%");
 Card *batteryValue      = new Card(&dashboard, GENERIC_CARD, DASH_BATTERY_STRING, "mV");
+Card *soilValue         = new Card(&dashboard, GENERIC_CARD, DASH_SOIL_VALUE_STRING, "%");
 
-#ifdef __HAS_BME280__
-Card *bmeTemperature    = new Card(&dashboard, TEMPERATURE_CARD, DASH_BME280_TEMPERATURE_STRING, "°C");
-Card *bmeHumidity       = new Card(&dashboard, HUMIDITY_CARD,   DASH_BME280_HUMIDITY_STRING, "%");
-Card *bmeAltitude       = new Card(&dashboard, GENERIC_CARD,    DASH_BME280_ALTITUDE_STRING, "m");
-Card *bmePressure       = new Card(&dashboard, GENERIC_CARD,    DASH_BME280_PRESSURE_STRING, "hPa");
-#endif  /*__HAS_BME280__*/
+Card *illumination      = NULL;
+Card *bmeTemperature    = NULL;
+Card *bmeHumidity       = NULL;
+Card *bmeAltitude       = NULL;
+Card *bmePressure       = NULL;
+Card *dsTemperature     = NULL;
+Card *sht3xTemperature  = NULL;
+Card *sht3xHumidity     = NULL;
+Card *motorButton       = NULL;
 
-#ifdef __HAS_DS18B20__
-Card *dsTemperature     = new Card(&dashboard, TEMPERATURE_CARD, DASH_DS18B20_STRING, "°C");
-#endif  /*__HAS_DS18B20__*/
-
-#ifdef __HAS_SHT3X__
-Card *sht3xTemperature    = new Card(&dashboard, TEMPERATURE_CARD, DASH_SHT3X_TEMPERATURE_STRING, "°C");
-Card *sht3xHumidity       = new Card(&dashboard, HUMIDITY_CARD, DASH_SHT3X_HUMIDITY_STRING, "%");
-#endif  /*__HAS_DS18B20__*/
-
-#ifdef __HAS_MOTOR__
-Card motorButton(&dashboard, BUTTON_CARD, DASH_MOTOR_CTRL_STRING);
-#endif  /*__HAS_MOTOR__*/
-
-#ifdef  __HAS_LORA__
-void loopLoRa(higrow_sensors_event_t *val);
-bool isLoraOnline = false;
-#endif /*__HAS_LORA__*/
-
-
-void deviceProbe(TwoWire &t);
+void    setupLoRa();
+void    loopLoRa(higrow_sensors_event_t *val);
+void    deviceProbe(TwoWire &t);
+float   getDsTemperature(void);
 
 void smartConfigStart(Button2 &b)
 {
-    Serial.println("smartConfigStart...");
+    Serial.println("esp touch is started in network distribution mode, please download esp touch application for network configuration!");
+    Serial.println("Appliction link: https://github.com/EspressifApp/EsptouchForAndroid/releases");
+    Serial.println();
     WiFi.disconnect();
     WiFi.beginSmartConfig();
     while (!WiFi.smartConfigDone()) {
@@ -135,10 +109,11 @@ void smartConfigStart(Button2 &b)
 
 void sleepHandler(Button2 &b)
 {
-#ifdef __HAS_LORA__
-    LoRa.sleep();
-    SPI.end();
-#endif
+    if (has_lora_shield) {
+        LoRa.sleep();
+        SPI.end();
+    }
+
     Serial.println("Enter Deepsleep ...");
     esp_sleep_enable_ext1_wakeup(GPIO_SEL_35, ESP_EXT1_WAKEUP_ALL_LOW);
     delay(1000);
@@ -179,33 +154,34 @@ void setupWiFi()
 bool get_higrow_sensors_event(sensor_id_t id, higrow_sensors_event_t &val)
 {
     switch (id) {
-#ifdef __HAS_BME280__
     case BME280_SENSOR_ID: {
-        if (has_bmeSensor) {
-            val.temperature = bme.readTemperature();
-            val.humidity = (bme.readPressure() / 100.0F);
-            val.altitude = bme.readAltitude(1013.25);
-        }
+        val.temperature = bme.readTemperature();
+        val.humidity = (bme.readPressure() / 100.0F);
+        val.altitude = bme.readAltitude(1013.25);
     }
     break;
-#endif
 
-#ifdef __HAS_SHT3X__
     case SHT3x_SENSOR_ID: {
-        if (has_dhtSensor) {
-            if (sht30.get()) {
-                val.temperature = sht30.cTemp;
-                val.humidity = sht30.humidity;
-            }
+        float t = sht31.readTemperature();
+        float h = sht31.readHumidity();
+        if (! isnan(t)) {  // check if 'is not a number'
+            Serial.print("Temp *C = "); Serial.print(t); Serial.print("\t\t");
+        } else {
+            Serial.println("Failed to read temperature");
         }
-
+        if (! isnan(h)) {  // check if 'is not a number'
+            Serial.print("Hum. % = "); Serial.println(h);
+        } else {
+            Serial.println("Failed to read humidity");
+        }
+        val.temperature = t;
+        val.humidity = h;
     }
     break;
-#endif
 
     case DHTxx_SENSOR_ID: {
-        val.temperature = dht12.readTemperature();
-        val.humidity = dht12.readHumidity();
+        val.temperature = dht.readTemperature();
+        val.humidity = dht.readHumidity();
         if (isnan(val.temperature)) {
             val.temperature = 0.0;
         }
@@ -216,18 +192,19 @@ bool get_higrow_sensors_event(sensor_id_t id, higrow_sensors_event_t &val)
     break;
 
     case BHT1750_SENSOR_ID: {
-        if (has_lightSensor) {
-            val.light = lightMeter.readLightLevel();
-        } else {
-            val.light = 0;
+        val.light = lightMeter.readLightLevel();
+        if (isnan(val.light)) {
+            val.light = 0.0;
         }
     }
     break;
+
     case SOIL_SENSOR_ID: {
         uint16_t soil = analogRead(SOIL_PIN);
         val.soli = map(soil, 0, 4095, 100, 0);
     }
     break;
+
     case SALT_SENSOR_ID: {
         uint8_t samples = 120;
         uint32_t humi = 0;
@@ -244,15 +221,15 @@ bool get_higrow_sensors_event(sensor_id_t id, higrow_sensors_event_t &val)
         val.salt = humi;
     }
     break;
-#ifdef __HAS_DS18B20__
+
     case DS18B20_SENSOR_ID: {
-        val.temperature = dsSensor.temp();
+        val.temperature = getDsTemperature();
         if (isnan(val.temperature) || val.temperature > 125.0) {
             val.temperature = 0;
         }
     }
-#endif
     break;
+
     case VOLTAGE_SENSOR_ID: {
         int vref = 1100;
         uint16_t volt = analogRead(BAT_ADC);
@@ -266,6 +243,129 @@ bool get_higrow_sensors_event(sensor_id_t id, higrow_sensors_event_t &val)
 }
 
 
+
+bool ds18b20Begin()
+{
+    uint8_t i;
+
+    ds.begin(DS18B20_PIN);
+
+    if (!ds.search(ds18b20Addr)) {
+        ds.reset_search();
+        return false;
+    }
+
+    Serial.print("ROM =");
+    for ( i = 0; i < 8; i++) {
+        Serial.write(' ');
+        Serial.print(ds18b20Addr[i], HEX);
+    }
+
+    if (OneWire::crc8(ds18b20Addr, 7) != ds18b20Addr[7]) {
+        Serial.println("CRC is not valid!");
+        return false;
+    }
+    Serial.println();
+
+    // the first ROM byte indicates which chip
+    switch (ds18b20Addr[0]) {
+    case 0x10:
+        Serial.println("  Chip = DS18S20");  // or old DS1820
+        ds18b20Type = 1;
+        break;
+    case 0x28:
+        Serial.println("  Chip = DS18B20");
+        ds18b20Type = 0;
+        break;
+    case 0x22:
+        Serial.println("  Chip = DS1822");
+        ds18b20Type = 0;
+        break;
+    default:
+        Serial.println("Device is not a DS18x20 family device.");
+        return false;
+    }
+
+    return true;
+}
+
+
+float getDsTemperature(void)
+{
+    uint8_t data[9];
+    uint8_t present;
+    float celsius, fahrenheit;
+    ds.reset();
+    ds.select(ds18b20Addr);
+    ds.write(0x44, 1);        // start conversion, with parasite power on at the end
+
+    delay(1000);     // maybe 750ms is enough, maybe not
+    // we might do a ds.depower() here, but the reset will take care of it.
+
+    present = ds.reset();
+    ds.select(ds18b20Addr);
+    ds.write(0xBE);         // Read Scratchpad
+
+    // Serial.print("  Data = ");
+    // Serial.print(present, HEX);
+    // Serial.print(" ");
+    for (int i = 0; i < 9; i++) {           // we need 9 bytes
+        data[i] = ds.read();
+        // Serial.print(data[i], HEX);
+        // Serial.print(" ");
+    }
+    // Serial.print(" CRC=");
+    // Serial.print(OneWire::crc8(data, 8), HEX);
+    // Serial.println();
+
+    // Convert the data to actual temperature
+    // because the result is a 16 bit signed integer, it should
+    // be stored to an "int16_t" type, which is always 16 bits
+    // even when compiled on a 32 bit processor.
+    int16_t raw = (data[1] << 8) | data[0];
+    if (ds18b20Type) {
+        raw = raw << 3; // 9 bit resolution default
+        if (data[7] == 0x10) {
+            // "count remain" gives full 12 bit resolution
+            raw = (raw & 0xFFF0) + 12 - data[6];
+        }
+    } else {
+        byte cfg = (data[4] & 0x60);
+        // at lower res, the low bits are undefined, so let's zero them
+        if (cfg == 0x00) raw = raw & ~7;  // 9 bit resolution, 93.75 ms
+        else if (cfg == 0x20) raw = raw & ~3; // 10 bit res, 187.5 ms
+        else if (cfg == 0x40) raw = raw & ~1; // 11 bit res, 375 ms
+        //// default is 12 bit resolution, 750 ms conversion time
+    }
+    celsius = (float)raw / 16.0;
+    // fahrenheit = celsius * 1.8 + 32.0;
+    // Serial.print("  Temperature = ");
+    // Serial.print(celsius);
+    // Serial.print(" Celsius, ");
+    // Serial.print(fahrenheit);
+    // Serial.println(" Fahrenheit");
+    return celsius;
+}
+
+bool dhtSensorProbe()
+{
+    dht.begin();
+    delay(2000);// Wait a few seconds between measurements.
+    int i = 5;
+    while (i--) {
+        // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+        float h = dht.readHumidity();
+        // Check if any reads failed and exit early (to try again).
+        if (isnan(h)) {
+            Serial.println("Failed to read from DHT sensor!");
+        } else {
+            return true;
+        }
+        delay(500);
+    }
+    return false;
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -273,62 +373,128 @@ void setup()
     button.setLongClickHandler(smartConfigStart);
     useButton.setLongClickHandler(sleepHandler);
 
-    //! Sensor power control pin , use deteced must set high
+    /* *
+    * Warning:
+    *   Higrow sensor power control pin, use external port and onboard sensor, IO4 must be set high
+    */
+
     pinMode(POWER_CTRL, OUTPUT);
     digitalWrite(POWER_CTRL, HIGH);
-    delay(1000);
+    delay(100);
 
     Wire.begin(I2C_SDA, I2C_SCL);
+    Wire1.begin(I2C1_SDA, I2C1_SCL);
 
+    Serial.println("-------------Devices probe-------------");
     deviceProbe(Wire);
-
-    dht12.begin();
-
-    if (!lightMeter.begin()) {
-        Serial.println(F("Could not find a valid BH1750 sensor, check wiring!"));
-        has_lightSensor = false;
-    }
-
-#ifdef __HAS_BME280__
-    if (!bme.begin()) {
-        Serial.println(F("Could not find a valid BMP280 sensor, check wiring!"));
-        has_bmeSensor = false;
-    }
-#endif /*__HAS_BME280__*/
-
-#ifdef __HAS_SHT3X__
-    Wire1.begin(21, 22);
     deviceProbe(Wire1);
-#endif /*__HAS_SHT3X__*/
 
+    //Check DHT11 temperature and humidity sensor
+    if (!dhtSensorProbe()) {
+        has_dht11 = false;
+        Serial.println("Warning: Failed to find DHT11 temperature and humidity sensor!");
+    } else {
+        has_dht11 = true;
+        Serial.println("DHT11 temperature and humidity sensor init succeeded, using DHT11");
+        dhtHumidity     = new Card(&dashboard, HUMIDITY_CARD, DASH_DHT_HUMIDITY_STRING, "%");
+        dhtTemperature  = new Card(&dashboard, TEMPERATURE_CARD, DASH_DHT_TEMPERATURE_STRING, "°C");
+    }
 
-#ifdef __HAS_LORA__
+    //Check SHT3x temperature and humidity sensor
+    if (has_sht3xSensor) {
+        if (!sht31.begin(OB_SHT3X_ADDRESS)) {   // Set to 0x45 for alternate i2c addr
+            Serial.println("Warning: Failed to find SHT3x temperature and humidity sensor!");
+        } else {
+            has_sht3xSensor = false;
+            Serial.println("SHT3X temperature and humidity sensor init succeeded, using SHT3X");
+            sht3xTemperature = new Card(&dashboard, TEMPERATURE_CARD, DASH_SHT3X_TEMPERATURE_STRING, "°C");
+            sht3xHumidity    = new Card(&dashboard, HUMIDITY_CARD, DASH_SHT3X_HUMIDITY_STRING, "%");
+        }
+    } else {
+        // Destroy Wire1 if SHT3x sensor does not exist
+        Wire1.end();
+        // If initialization fails, look for a One-Wire sensor present
+        if (ds18b20Begin()) {
+            has_ds18b20 = true;
+            dsTemperature = new Card(&dashboard, TEMPERATURE_CARD, DASH_DS18B20_STRING, "°C");
+            Serial.println("DS18B20 temperature sensor init succeeded, using DS18B20");
+        } else {
+            has_ds18b20 = false;
+            Serial.println("Warning: Failed to find DS18B20 temperature sensor!");
+        }
+    }
+
+    //Check DHT11 or DHT20 temperature and humidity sensor
+    if (has_lightSensor) {
+        if (!lightMeter.begin()) {
+            has_lightSensor = false;
+            Serial.println("Warning: Failed to find BH1750 light sensor!");
+        } else {
+            Serial.println("BH1750 light sensor init succeeded, using BH1750");
+            illumination = new Card(&dashboard, GENERIC_CARD, DASH_BH1750_LUX_STRING, "lx");
+        }
+    }
+
+    //Check BME280 temperature and humidity sensor
+    if (has_bmeSensor) {
+        if (!bme.begin()) {
+            Serial.println("Warning: Failed to find BMP280 temperature and humidity sensor");
+        } else {
+            Serial.println("BMP280 temperature and humidity sensor init succeeded, using BMP280");
+            has_bmeSensor   = true;
+            bmeTemperature  = new Card(&dashboard, TEMPERATURE_CARD, DASH_BME280_TEMPERATURE_STRING, "°C");
+            bmeHumidity     = new Card(&dashboard, HUMIDITY_CARD,   DASH_BME280_HUMIDITY_STRING, "%");
+            bmeAltitude     = new Card(&dashboard, GENERIC_CARD,    DASH_BME280_ALTITUDE_STRING, "m");
+            bmePressure     = new Card(&dashboard, GENERIC_CARD,    DASH_BME280_PRESSURE_STRING, "hPa");
+        }
+    }
+
+    // Try initializing the LoRa Shield, if it exists!
     setupLoRa();
-#endif
+
+    /* *
+     *  IO18 uses the same pins as LoRa Shield. If the initialization of LoRa Sheild fails,
+     *  IO18 is initialized as RGB pixel pin by default, and IO19 is initialized as motor drive pin
+     */
+    if (has_lora_shield) {
+        Serial.println("LoRa shield init succeeded, using SX1276 Rado");
+    } else {
+        Serial.println("LoRa Shield is not found, initialize IO18 as RGB pixel pin, and IO19 as motor drive pin");
+
+        // IO18 is initialized as RGB pixel pin
+        pixels = new  Adafruit_NeoPixel(1, RGB_PIN, NEO_GRB + NEO_KHZ800);
+
+        if (pixels) {
+            pixels->begin();
+            pixels->setPixelColor(0, 0xFF0000);
+            pixels->setBrightness(120);
+            pixels->show();
+        }
+
+        // IO19 is initialized as motor drive pin
+        pinMode(MOTOR_PIN, OUTPUT);
+        digitalWrite(MOTOR_PIN, LOW);
+
+        motorButton = new Card(&dashboard, BUTTON_CARD, DASH_MOTOR_CTRL_STRING);
+
+        motorButton->attachCallback([&](bool value) {
+
+            Serial.println("motorButton Triggered: " + String((value) ? "true" : "false"));
+
+            digitalWrite(MOTOR_PIN, value);
+
+            if (pixels) {
+                pixels->setPixelColor(0, value ? 0x00FF00 : 0);
+                pixels->show();
+            }
+
+            motorButton->update(value);
+
+            dashboard.sendUpdates();
+        });
+    }
 
     setupWiFi();
-
-#ifdef __HAS_MOTOR__
-
-    pixels.begin();
-    pixels.setPixelColor(0, 0xFF0000);
-    pixels.show();
-
-    pinMode(MOTOR_PIN, OUTPUT);
-    digitalWrite(MOTOR_PIN, LOW);
-    motorButton.attachCallback([&](bool value) {
-        Serial.println("motorButton Triggered: " + String((value) ? "true" : "false"));
-        digitalWrite(MOTOR_PIN, value);
-        pixels.setPixelColor(0, value ? 0x00FF00 : 0);
-        pixels.show();
-        motorButton.update(value);
-        dashboard.sendUpdates();
-    });
-#endif  /*__HAS_MOTOR__*/
-
-
-
-
 }
 
 
@@ -342,9 +508,6 @@ void loop()
 
         higrow_sensors_event_t val = {0};
 
-        get_higrow_sensors_event(BHT1750_SENSOR_ID, val);
-        illumination->update(val.light);
-
         get_higrow_sensors_event(SOIL_SENSOR_ID, val);
         soilValue->update(val.soli);
 
@@ -354,36 +517,39 @@ void loop()
         get_higrow_sensors_event(VOLTAGE_SENSOR_ID, val);
         batteryValue->update(val.voltage);
 
-        get_higrow_sensors_event(DHTxx_SENSOR_ID, val);
-        dhtTemperature->update(val.temperature);
-        dhtHumidity->update(val.humidity);
+        if (has_dht11) {
+            get_higrow_sensors_event(DHTxx_SENSOR_ID, val);
+            dhtTemperature->update(val.temperature);
+            dhtHumidity->update(val.humidity);
+        }
 
-#ifdef __HAS_BME280__
-        get_higrow_sensors_event(BME280_SENSOR_ID, val);
-        bmeTemperature->update(val.temperature);
-        bmeHumidity->update(val.humidity);
-        bmeAltitude->update(val.altitude);
-        bmePressure->update(val.pressure);
-#endif /*__HAS_BME280__*/
+        if (has_lightSensor) {
+            get_higrow_sensors_event(BHT1750_SENSOR_ID, val);
+            illumination->update(val.light);
+        }
 
-#ifdef __HAS_SHT3X__
-        get_higrow_sensors_event(SHT3x_SENSOR_ID, val);
-        sht3xTemperature->update(val.temperature);
-        sht3xHumidity->update(val.humidity);
-#endif  /*__HAS_SHT3X__*/
+        if (has_bmeSensor) {
+            get_higrow_sensors_event(BME280_SENSOR_ID, val);
+            bmeTemperature->update(val.temperature);
+            bmeHumidity->update(val.humidity);
+            bmeAltitude->update(val.altitude);
+            bmePressure->update(val.pressure);
+        }
 
+        if (has_sht3xSensor) {
+            get_higrow_sensors_event(SHT3x_SENSOR_ID, val);
+            sht3xTemperature->update(val.temperature);
+            sht3xHumidity->update(val.humidity);
+        }
 
-#ifdef __HAS_DS18B20__
-        get_higrow_sensors_event(DS18B20_SENSOR_ID, val);
-        dsTemperature->update(val.temperature);
-#endif  /*__HAS_DS18B20__*/
-
+        if (has_ds18b20) {
+            get_higrow_sensors_event(DS18B20_SENSOR_ID, val);
+            dsTemperature->update(val.temperature);
+        }
 
         dashboard.sendUpdates();
 
-#ifdef __HAS_LORA__
         loopLoRa(&val);
-#endif
     }
 }
 
@@ -391,28 +557,33 @@ void loop()
 
 void deviceProbe(TwoWire &t)
 {
+
     uint8_t err, addr;
     int nDevices = 0;
     for (addr = 1; addr < 127; addr++) {
         t.beginTransmission(addr);
         err = t.endTransmission();
         if (err == 0) {
-            Serial.print("I2C device found at address 0x");
-            if (addr < 16)
-                Serial.print("0");
-            Serial.print(addr, HEX);
-            Serial.println(" !");
+
             switch (addr) {
             case OB_BH1750_ADDRESS:
-                has_dhtSensor = true;
+                has_lightSensor = true;
+                Serial.println("BH1750 light sensor found!");
                 break;
             case OB_BME280_ADDRESS:
                 has_bmeSensor = true;
+                Serial.println("BME280 temperature and humidity sensor found!");
                 break;
             case OB_SHT3X_ADDRESS:
-                has_dhtSensor = true;
+                has_sht3xSensor = true;
+                Serial.println("SHT3X temperature and humidity sensor found!");
                 break;
             default:
+                Serial.print("I2C device found at address 0x");
+                if (addr < 16)
+                    Serial.print("0");
+                Serial.print(addr, HEX);
+                Serial.println(" !");
                 break;
             }
             nDevices++;
@@ -423,28 +594,23 @@ void deviceProbe(TwoWire &t)
             Serial.println(addr, HEX);
         }
     }
-    if (nDevices == 0)
-        Serial.println("No I2C devices found\n");
-    else
-        Serial.println("done\n");
 }
 
 
-#ifdef __HAS_LORA__
 void setupLoRa()
 {
     SPI.begin(RADIO_SCLK_PIN, RADIO_MISO_PIN, RADIO_MOSI_PIN, RADIO_CS_PIN);
     LoRa.setPins(RADIO_CS_PIN, RADIO_RESET_PIN, RADIO_DI0_PIN);
     if (!LoRa.begin(LoRa_frequency)) {
-        Serial.println("Start LoRa failed!");
+        SPI.end();
         return;
     }
-    isLoraOnline = true;
+    has_lora_shield = true;
 }
 
 void loopLoRa(higrow_sensors_event_t *val)
 {
-    if (!isLoraOnline)return;
+    if (!has_lora_shield)return;
 
     /**
      *   The transmission JSON format is sent through LoRa,
@@ -466,7 +632,6 @@ void loopLoRa(higrow_sensors_event_t *val)
     cJSON_Delete(root);
 }
 
-#endif
 
 
 

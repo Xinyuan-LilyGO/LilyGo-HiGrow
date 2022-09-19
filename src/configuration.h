@@ -6,14 +6,10 @@
 #define SOFTAP_MODE
 
 
+// Wireless access point ssid password
+#define WIFI_SSID               "XXXXXXXX"
+#define WIFI_PASSWD             "12345678"
 
-/*
-    Sensor selection, the default is the onboard sensor
-*/
-// #define __HAS_BME280__               //BME280 temperature, humidity, pressure, height sensor
-// #define __HAS_MOTOR__                //High and low level control relay, or other level drive motor
-// #define __HAS_RGB__                  //WS2812 single point colorful light
-// #define __HAS_LORA__                 //HiGrow lora shield ,use sx127x
 
 /*
 * if you need to change it,
@@ -24,19 +20,20 @@
 #define LoRa_frequency      868E6
 
 
-// Only one of the following two can be selected, otherwise there will be conflicts
-// #define __HAS_SHT3X__                //SHT3X temperature and humidity sensor
-// #define __HAS_DS18B20__              //DS18B20 temperature and humidity sensor
+// Uncomment the type of sensor in use:
+#define DHTTYPE           DHT11     // DHT 11
+// #define DHTTYPE           DHT22     // DHT 22 (AM2302)
+//#define DHTTYPE           DHT21     // DHT 21 (AM2301)
 
-
-// Wireless access point ssid password
-#define WIFI_SSID               "XXXXXXXX"
-#define WIFI_PASSWD             "12345678"
 
 
 #define I2C_SDA                 (25)
 #define I2C_SCL                 (26)
-#define DHT12_PIN               (16)
+#define I2C1_SDA                (21)
+#define I2C1_SCL                (22)
+#define DS18B20_PIN             (21)
+
+#define DHT1x_PIN               (16)
 #define BAT_ADC                 (33)
 #define SALT_PIN                (34)
 #define SOIL_PIN                (32)
@@ -47,7 +44,6 @@
 
 #define MOTOR_PIN               (19)
 #define RGB_PIN                 (18)
-
 
 #define RADIO_RESET_PIN         (23)
 #define RADIO_DI0_PIN           (14)
