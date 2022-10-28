@@ -4,7 +4,7 @@
     The default is hotspot mode, the note will be connected to the configured WiFi
 */
 #define SOFTAP_MODE
-
+// #define AUTO_WATER
 
 // Wireless access point ssid password
 #define WIFI_SSID               "XXXXXXXX"

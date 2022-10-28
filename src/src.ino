@@ -365,6 +365,17 @@ bool dhtSensorProbe()
     }
     return false;
 }
+#ifdef AUTO_WATER
+void WateringCallback(bool value)
+{
+    Serial.println("motorButton Triggered: " + String((value) ? "true" : "false"));
+    digitalWrite(MOTOR_PIN, value);
+    pixels->setPixelColor(0, value ? 0x00FF00 : 0);
+    pixels->show();
+    motorButton->update(value);
+    dashboard.sendUpdates();
+}
+#endif  /*__HAS_MOTOR__*/
 
 void setup()
 {
@@ -498,6 +509,7 @@ void setup()
 }
 
 
+
 void loop()
 {
     button.loop();
@@ -546,6 +558,19 @@ void loop()
             get_higrow_sensors_event(DS18B20_SENSOR_ID, val);
             dsTemperature->update(val.temperature);
         }
+
+#ifdef AUTO_WATER
+        uint16_t soil = analogRead(SOIL_PIN);
+        uint16_t soli_val = map(soil, 0, 4095, 100, 0);
+        if (soli_val < 26) {
+            // Serial.println("Start adding water");
+            WateringCallback(true);
+        }
+        if (soli_val >= 40) {
+            // Serial.println("Stop adding water");
+            WateringCallback(false);
+        }
+#endif  /*AUTO_WATER*/
 
         dashboard.sendUpdates();
 
