@@ -1,5 +1,8 @@
 <h1 align = "center">🌟LilyGO HiGrow🌟</h1>
 
+![](https://github.com/Xinyuan-LilyGO/LilyGo-HiGrow/blob/master/image/img1.jpg)
+
+![](https://github.com/Xinyuan-LilyGO/LilyGo-HiGrow/blob/master/image/img2.jpg)
 
 ## Using **Arduino IDE**
 
