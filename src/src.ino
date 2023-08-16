@@ -477,9 +477,13 @@ void setup()
 
         if (pixels) {
             pixels->begin();
-            pixels->setPixelColor(0, 0xFF0000);
-            pixels->setBrightness(120);
-            pixels->show();
+            pixels->setBrightness(50);
+
+            pixels->setPixelColor(0, pixels->Color(255, 0, 0)); pixels->show(); delay(1000);
+            pixels->setPixelColor(0, pixels->Color(0, 255, 0)); pixels->show(); delay(1000);
+            pixels->setPixelColor(0, pixels->Color(0, 0, 255)); pixels->show(); delay(1000);
+            pixels->setPixelColor(0, pixels->Color(0, 0, 0)); pixels->show();
+
         }
 
         // IO19 is initialized as motor drive pin
@@ -495,7 +499,7 @@ void setup()
             digitalWrite(MOTOR_PIN, value);
 
             if (pixels) {
-                pixels->setPixelColor(0, value ? 0x00FF00 : 0);
+                pixels->setPixelColor(0, value ? pixels->Color(0, 255, 0) : pixels->Color(0, 0, 0));
                 pixels->show();
             }
 
