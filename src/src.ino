@@ -156,8 +156,10 @@ bool get_higrow_sensors_event(sensor_id_t id, higrow_sensors_event_t &val)
     switch (id) {
     case BME280_SENSOR_ID: {
         val.temperature = bme.readTemperature();
-        val.humidity = (bme.readPressure() / 100.0F);
+        val.pressure = (bme.readPressure() / 100.0F);
+        // Fixes wrong display of humidity and supplies pressure tile with data.
         val.altitude = bme.readAltitude(1013.25);
+        val.humidity = bme.readHumidity();
     }
     break;
 
