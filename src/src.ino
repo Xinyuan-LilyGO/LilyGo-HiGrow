@@ -15,6 +15,7 @@
 #include "DHT.h"
 #include "configuration.h"
 
+#define TIME_TO_SLEEP       3 * 60 * 1000   //In AP mode, if there is no client connection after timeout, the system will enter sleep mode.
 
 typedef enum {
     BME280_SENSOR_ID,
@@ -91,7 +92,7 @@ float   getDsTemperature(void);
 void smartConfigStart(Button2 &b)
 {
     Serial.println("esp touch is started in network distribution mode, please download esp touch application for network configuration!");
-    Serial.println("Appliction link: https://github.com/EspressifApp/EsptouchForAndroid/releases");
+    Serial.println("Application link: https://github.com/EspressifApp/EsptouchForAndroid/releases");
     Serial.println();
     WiFi.disconnect();
     WiFi.beginSmartConfig();
@@ -107,7 +108,7 @@ void smartConfigStart(Button2 &b)
     Serial.println(WiFi.psk());
 }
 
-void sleepHandler(Button2 &b)
+void deviceSleep()
 {
     if (has_lora_shield) {
         LoRa.sleep();
@@ -120,6 +121,19 @@ void sleepHandler(Button2 &b)
     esp_deep_sleep_start();
 }
 
+void sleepHandler(Button2 &b)
+{
+    deviceSleep();
+}
+
+TimerHandle_t sleepTimer;
+
+void wifi_ap_connect_timeout(WiFiEvent_t event, WiFiEventInfo_t info)
+{
+    Serial.println("WiFi Client connected");
+    xTimerDelete(sleepTimer, portMAX_DELAY);    //Remove timer
+}
+
 void setupWiFi()
 {
 #ifdef SOFTAP_MODE
@@ -130,6 +144,17 @@ void setupWiFi()
     sprintf(buff, "T-Higrow-%02X:%02X", mac[4], mac[5]);
     WiFi.softAP(buff);
     Serial.printf("The hotspot has been established, please connect to the %s and output 192.168.4.1 in the browser to access the data page \n", buff);
+
+    /*The device is turned off after timeout and remains in sleep mode. Press GPIO35 to exit the sleep state and restart the AP.*/
+    WiFi.onEvent(wifi_ap_connect_timeout, WiFiEvent_t::ARDUINO_EVENT_WIFI_AP_STACONNECTED);
+
+    sleepTimer = xTimerCreate("timer", pdTICKS_TO_MS(TIME_TO_SLEEP), pdFALSE, NULL, [](TimerHandle_t timer) {
+        WiFi.mode(WIFI_MODE_NULL);
+        deviceSleep();
+    });
+
+    xTimerStart(sleepTimer, portMAX_DELAY);
+
 #else
     WiFi.mode(WIFI_STA);
 
@@ -464,11 +489,11 @@ void setup()
     setupLoRa();
 
     /* *
-     *  IO18 uses the same pins as LoRa Shield. If the initialization of LoRa Sheild fails,
+     *  IO18 uses the same pins as LoRa Shield. If the initialization of LoRa Shield fails,
      *  IO18 is initialized as RGB pixel pin by default, and IO19 is initialized as motor drive pin
      */
     if (has_lora_shield) {
-        Serial.println("LoRa shield init succeeded, using SX1276 Rado");
+        Serial.println("LoRa shield init succeeded, using SX1276 Radio");
     } else {
         Serial.println("LoRa Shield is not found, initialize IO18 as RGB pixel pin, and IO19 as motor drive pin");
 
