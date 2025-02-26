@@ -8,7 +8,7 @@
 <p align="center">
 <img src="https://img.shields.io/github/last-commit/ayushsharma82/ESP-DASH/master?style=for-the-badge" />
 &nbsp;
-<img src="https://img.shields.io/github/workflow/status/ayushsharma82/ESP-DASH/Arduino%20Library%20CI/master?style=for-the-badge" />
+<img src="https://img.shields.io/travis/com/ayushsharma82/ESP-DASH/master?style=for-the-badge" />
 &nbsp;
 <img src="https://img.shields.io/github/license/ayushsharma82/ESP-DASH.svg?style=for-the-badge" />
 &nbsp;
@@ -24,19 +24,6 @@
 <h2>Preview</h2>
 <img src="/docs/preview.png?raw=true">
 
-<h2>Upgrade to Pro</h2>
-Checkout the Pro version of ESP-DASH which comes with extended functionality and exclusive cards & charts. ESP-DASH Pro supports custom order of cards and no "Buy me a coffee" button on the dashboard.
-
-<br> <b>Available Here: </b>
-<ol>
-  <li>https://www.buymeacoffee.com/6QGVpSj/e/28263</li>
-  <li>https://espdash.pro</li>
-</ol>
-
-<a href="https://espdash.pro" target="_blank">
-  <img src="/docs/dashboard-mockup.png" alt="ESP-DASH Pro">
-</a>
-
 <br/>
 <br/>
 
@@ -51,8 +38,8 @@ Checkout the Pro version of ESP-DASH which comes with extended functionality and
   </ul>
 </p>
 
-<br>
-<br>
+<br/>
+<br/>
 
 <h2>Documentation</h2>
 <p>Learn more about Installation & Usage: <a href="https://ayushsharma82.github.io/ESP-DASH/">Click Here</a></p>
@@ -63,10 +50,10 @@ Checkout the Pro version of ESP-DASH which comes with extended functionality and
 
 <h2>Sponsor</h2>
 <p>
-  This project was created in collaboration with <a href="https://naturalistic.io">Naturalistic Design Studio</a>:
+This project was created in collaboration with:
 <br>
 <br>
-<a href="https://naturalistic.io" target="_blank"><img src="/docs/studio.png" alt="Naturalistic Studio" width="350px"></a>
+<a href="https://naturalistic.io" target="_blank"><img src="/docs/studio.png" alt="Naturalistic Studio" width="550px"></a>
 </p>
 
 <br/>
