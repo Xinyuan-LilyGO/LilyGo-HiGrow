@@ -116,7 +116,8 @@ void deviceSleep()
     }
 
     Serial.println("Enter Deepsleep ...");
-    esp_sleep_enable_ext1_wakeup(GPIO_SEL_35, ESP_EXT1_WAKEUP_ALL_LOW);
+    // GPIO35 MASK
+    esp_sleep_enable_ext1_wakeup(_BV(35), ESP_EXT1_WAKEUP_ALL_LOW);
     delay(1000);
     esp_deep_sleep_start();
 }
