@@ -476,9 +476,9 @@ void setup()
     //Check BME280 temperature and humidity sensor
     if (has_bmeSensor) {
         if (!bme.begin()) {
-            Serial.println("Warning: Failed to find BMP280 temperature and humidity sensor");
+            Serial.println("Warning: Failed to find BME280 temperature and humidity sensor");
         } else {
-            Serial.println("BMP280 temperature and humidity sensor init succeeded, using BMP280");
+            Serial.println("BME280 temperature and humidity sensor init succeeded, using BME280");
             has_bmeSensor   = true;
             bmeTemperature  = new Card(&dashboard, TEMPERATURE_CARD, DASH_BME280_TEMPERATURE_STRING, "°C");
             bmeHumidity     = new Card(&dashboard, HUMIDITY_CARD,   DASH_BME280_HUMIDITY_STRING, "%");
