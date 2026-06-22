@@ -30,3 +30,11 @@
 ## Grove model
 
 [Molex 538-53015-0410](https://www.mouser.cn/ProductDetail/Molex/53015-0410?qs=359VwiUTsp1skqWV7ayN8g%3D%3D)
+
+## [Board Size](./shell/drw0001.dxf)
+
+![](./image/size.png)
+
+## [Shell](./shell/prt0001.rar)
+
+![](./image/2.png)
